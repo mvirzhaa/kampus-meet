@@ -1,0 +1,13 @@
+# Konfigurasi LiveKit Egress. Rahasia diisi otomatis oleh scripts/gen-env.sh.
+log_level: info
+api_key: kampusmeet
+api_secret: __LIVEKIT_API_SECRET__
+ws_url: ws://127.0.0.1:7880
+insecure: true                 # koneksi lokal tanpa TLS (hanya di dalam server)
+redis:
+  address: 127.0.0.1:6379
+  password: __REDIS_PASSWORD__
+health_port: 8081
+# Tanpa konfigurasi S3/GCS/Azure: file MP4 ditulis ke /out (folder bersama), lalu aplikasi mengunggahnya ke Google Drive.
+cpu_cost:
+  room_composite_cpu_cost: 3.0 # perkiraan core per rekaman; Egress menolak rekaman baru bila CPU tidak cukup

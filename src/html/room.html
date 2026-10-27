@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
+<title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!--CSS:site-->
+<!--CSS:roomcss-->
+</head>
+<body class="room-body">
+<div id="app" class="room" data-panel="chat">
+  <!-- Kolom navigasi kiri: pesan, catatan, polling, daftar pengguna -->
+  <aside class="r-nav" id="r-nav" aria-label="Navigasi ruang">
+    <div class="r-nav-sec">
+      <h6>PESAN</h6>
+      <button class="r-nav-item active" data-open="chat"><i data-i="message-square" data-s="22"></i><span>Chat Publik</span><b class="badge" id="unread-chat" hidden></b></button>
+      <div id="pchat-list"></div>
+    </div>
+    <div class="r-nav-sec">
+      <h6>CATATAN</h6>
+      <button class="r-nav-item" data-open="notes"><i data-i="sticky-note" data-s="22"></i><span>Catatan Bersama</span><b class="badge dot" id="unread-notes" hidden></b></button>
+      <button class="r-nav-item" data-open="transcript"><i data-i="audio-lines" data-s="22"></i><span>Transkrip</span><b class="badge dot" id="unread-tr" hidden></b></button>
+    </div>
+    <div class="r-nav-sec" id="poll-nav" hidden>
+      <h6>POLLING</h6>
+      <button class="r-nav-item" data-open="poll"><i data-i="poll" data-s="22"></i><span>Polling</span><b class="badge dot" id="unread-poll" hidden></b></button>
+    </div>
+    <div class="r-nav-sec users-sec">
+      <h6><span class="h6-label">PENGGUNA (<span id="user-count">0</span>)</span> <button class="icon-btn mod-only" id="users-gear" title="Kelola pengguna" aria-label="Kelola pengguna"><i data-i="settings" data-s="18"></i></button></h6>
+      <div id="user-list" class="user-list" role="list"></div>
+    </div>
+  </aside>
+
+  <!-- Panel samping: chat / catatan / polling / chat privat -->
+  <section class="r-panel" id="r-panel" aria-label="Panel samping">
+    <div class="p-view" data-view="chat">
+      <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span>Chat Publik</span>
+        <div class="dropdown"><button class="icon-btn" aria-label="Opsi chat"><i data-i="more-v"></i></button>
+          <div class="dropdown-menu dropdown-right dark-dd">
+            <button id="chat-save"><i data-i="download" data-s="16"></i>Simpan chat</button>
+            <button id="chat-copy"><i data-i="copy" data-s="16"></i>Salin chat</button>
+            <button id="chat-clear" class="mod-only"><i data-i="trash" data-s="16"></i>Hapus chat publik</button>
+          </div></div></header>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <form class="chat-form" id="chat-form" autocomplete="off">
+        <textarea id="chat-input" rows="1" maxlength="1000" placeholder="Kirim pesan ke Chat Publik" aria-label="Pesan"></textarea>
+        <button class="send-btn" type="submit" aria-label="Kirim"><i data-i="send" data-s="18"></i></button>
+      </form>
+    </div>
+    <div class="p-view" data-view="pchat" hidden>
+      <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span id="pchat-title">Chat Privat</span>
+        <button class="icon-btn" id="pchat-close" title="Tutup percakapan"><i data-i="x"></i></button></header>
+      <div class="chat-log" id="pchat-log"></div>
+      <form class="chat-form" id="pchat-form" autocomplete="off">
+        <textarea id="pchat-input" rows="1" maxlength="1000" placeholder="Kirim pesan privat" aria-label="Pesan privat"></textarea>
+        <button class="send-btn" type="submit" aria-label="Kirim"><i data-i="send" data-s="18"></i></button>
+      </form>
+    </div>
+    <div class="p-view" data-view="notes" hidden>
+      <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span>Catatan Bersama</span>
+        <button class="icon-btn" id="notes-dl" title="Unduh catatan"><i data-i="download" data-s="18"></i></button></header>
+      <div class="notes-wrap">
+        <div id="notes-lock" class="lock-note" hidden><i data-i="lock" data-s="15"></i> Catatan dikunci oleh moderator</div>
+        <textarea id="notes" maxlength="20000" placeholder="Tulis catatan bersama di sini… (terlihat dan dapat diedit semua peserta)"></textarea>
+      </div>
+    </div>
+    <div class="p-view" data-view="transcript" hidden>
+      <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span>Transkrip Otomatis</span>
+        <button class="icon-btn" id="tr-dl" title="Unduh transkrip"><i data-i="download" data-s="18"></i></button></header>
+      <div class="tr-ctl">
+        <button class="btn btn-sm btn-primary mod-only" id="tr-toggle" type="button">Mulai transkripsi</button>
+        <label class="tr-lang">Bahasa ucapan saya
+          <select id="tr-lang"><option value="id-ID">Bahasa Indonesia</option><option value="en-US">English</option></select></label>
+        <div class="tr-status" id="tr-status"></div>
+      </div>
+      <div class="chat-log tr-log" id="tr-log" aria-live="polite"></div>
+    </div>
+    <div class="p-view" data-view="poll" hidden>
+      <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span>Polling</span></header>
+      <div class="poll-wrap" id="poll-box"></div>
+    </div>
+  </section>
+
+  <!-- Panggung utama -->
+  <main class="stage" id="stage">
+    <header class="r-top">
+      <button class="icon-btn light" id="toggle-nav" title="Tampilkan/sembunyikan daftar pengguna" aria-label="Daftar pengguna"><i data-i="users" data-s="20"></i></button>
+      <div class="r-title"><span id="room-name">Meeting</span><span class="sep"></span><span id="elapsed">00:00</span></div>
+      <button class="rec-btn" id="rec-btn" type="button"><span class="rec-dot"></span><span id="rec-label">Mulai rekam</span></button>
+      <span class="cap-badge" id="cap-badge" hidden title="Ucapan peserta sedang ditranskripsi otomatis"><i data-i="captions" data-s="16"></i><span>Transkripsi aktif</span></span>
+      <div class="r-top-right">
+        <button class="conn-btn" id="conn-btn" title="Status koneksi" aria-label="Status koneksi"><i data-i="signal" data-s="18"></i></button>
+        <div class="dropdown"><button class="icon-btn light" aria-label="Opsi lainnya"><i data-i="more-v" data-s="22"></i></button>
+          <div class="dropdown-menu dropdown-right dark-dd">
+            <button id="m-full"><i data-i="maximize" data-s="16"></i>Layar penuh</button>
+            <button id="m-settings"><i data-i="settings" data-s="16"></i>Pengaturan</button>
+            <button id="m-info"><i data-i="info" data-s="16"></i>Info room</button>
+            <button id="m-shortcuts"><i data-i="keyboard" data-s="16"></i>Pintasan keyboard</button>
+            <button id="m-end" class="mod-only danger"><i data-i="phone-off" data-s="16"></i>Akhiri meeting untuk semua</button>
+            <button id="m-leave"><i data-i="log-out" data-s="16"></i>Keluar</button>
+          </div></div>
+      </div>
+    </header>
+
+    <div class="rec-banner" id="rec-banner" hidden><span class="rec-dot on"></span>Meeting ini sedang direkam</div>
+
+    <div class="cams" id="cams" hidden>
+      <button class="cam-page prev" id="cam-prev" aria-label="Kamera sebelumnya" hidden><i data-i="chevron-left"></i></button>
+      <div class="cam-grid" id="cam-grid"></div>
+      <button class="cam-page next" id="cam-next" aria-label="Kamera berikutnya" hidden><i data-i="chevron-right"></i></button>
+    </div>
+
+    <div class="main-area" id="main-area">
+      <div class="screen-view" id="screen-view" hidden>
+        <div class="screen-label" id="screen-label"></div>
+        <button class="icon-btn light screen-full" id="screen-full" title="Layar penuh"><i data-i="expand"></i></button>
+      </div>
+      <div class="pres-view" id="pres-view">
+        <div class="pres-scroll" id="pres-scroll">
+          <div class="pres-page" id="pres-page">
+            <canvas id="pdf-canvas"></canvas>
+            <canvas id="wb-canvas"></canvas>
+            <textarea id="wb-text" class="wb-text" hidden></textarea>
+          </div>
+        </div>
+        <div class="wb-tools" id="wb-tools" hidden>
+          <button data-tool="pointer" class="active" title="Pilih (pointer)"><i data-i="pointer" data-s="18"></i></button>
+          <button data-tool="pan" title="Geser (pan)"><i data-i="move" data-s="18"></i></button>
+          <button data-tool="pen" title="Pena"><i data-i="pen" data-s="18"></i></button>
+          <button data-tool="eraser" title="Penghapus"><i data-i="eraser" data-s="18"></i></button>
+          <button data-tool="rect" title="Kotak"><i data-i="square" data-s="18"></i></button>
+          <button data-tool="ellipse" title="Lingkaran"><i data-i="circle" data-s="18"></i></button>
+          <button data-tool="line" title="Garis"><i data-i="minus" data-s="18"></i></button>
+          <button data-tool="arrow" title="Panah"><i data-i="arrow" data-s="18"></i></button>
+          <button data-tool="text" title="Teks"><i data-i="type" data-s="18"></i></button>
+          <span class="wb-sep"></span>
+          <label class="wb-color" title="Warna"><input type="color" id="wb-color" value="#e53935"></label>
+          <select id="wb-size" title="Ketebalan"><option value="2">Tipis</option><option value="4" selected>Sedang</option><option value="8">Tebal</option></select>
+          <span class="wb-sep"></span>
+          <button id="wb-undo" title="Urungkan"><i data-i="undo" data-s="18"></i></button>
+          <button id="wb-clear" title="Hapus semua anotasi"><i data-i="trash" data-s="18"></i></button>
+        </div>
+        <div class="pres-bar" id="pres-bar">
+          <div class="pb-left"><button class="icon-btn light" id="pres-dl" title="Unduh presentasi" hidden><i data-i="download" data-s="18"></i></button><span id="pres-name"></span></div>
+          <div class="pb-mid">
+            <button class="icon-btn light" id="pg-prev" aria-label="Slide sebelumnya"><i data-i="chevron-left"></i></button>
+            <select id="pg-select" aria-label="Pilih slide"></select>
+            <button class="icon-btn light" id="pg-next" aria-label="Slide berikutnya"><i data-i="chevron-right"></i></button>
+          </div>
+          <div class="pb-right">
+            <button class="icon-btn light" id="zoom-out" aria-label="Perkecil"><i data-i="zoom-out" data-s="18"></i></button>
+            <span id="zoom-val">100%</span>
+            <button class="icon-btn light" id="zoom-in" aria-label="Perbesar"><i data-i="zoom-in" data-s="18"></i></button>
+            <button class="icon-btn light" id="fit-width" title="Sesuaikan lebar"><i data-i="expand" data-s="18"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="empty-stage" id="empty-stage" hidden></div>
+      <div class="reactions-layer" id="reactions-layer" aria-hidden="true"></div>
+      <div class="captions" id="captions" hidden aria-live="off"></div>
+    </div>
+
+    <footer class="controls" id="controls">
+      <div class="c-left">
+        <div class="dropdown up"><button class="ctl-btn primary" id="plus-btn" aria-label="Aksi"><i data-i="plus" data-s="22"></i></button>
+          <div class="dropdown-menu dark-dd up-menu" id="plus-menu">
+            <button id="a-pres" class="pres-only"><i data-i="file-up" data-s="16"></i>Kelola presentasi</button>
+            <button id="a-poll" class="pres-only"><i data-i="poll" data-s="16"></i>Mulai polling</button>
+            <button id="a-blank" class="pres-only"><i data-i="presentation" data-s="16"></i>Whiteboard kosong</button>
+            <button id="a-take" class="mod-only"><i data-i="crown" data-s="16"></i>Jadikan saya presenter</button>
+            <button id="a-settings"><i data-i="settings" data-s="16"></i>Pengaturan audio &amp; video</button>
+          </div></div>
+      </div>
+      <div class="c-mid">
+        <button class="ctl-btn" id="btn-audio" aria-label="Audio"><i data-i="headphones" data-s="22"></i></button>
+        <button class="ctl-btn" id="btn-mic" aria-label="Mikrofon" hidden><i data-i="mic-off" data-s="22"></i></button>
+        <button class="ctl-btn" id="btn-cam" aria-label="Kamera"><i data-i="video-off" data-s="22"></i></button>
+        <button class="ctl-btn" id="btn-screen" aria-label="Berbagi layar"><i data-i="monitor-up" data-s="22"></i></button>
+        <button class="ctl-btn danger" id="btn-leave" aria-label="Keluar"><i data-i="phone-off" data-s="22"></i></button>
+      </div>
+      <div class="c-right">
+        <button class="ctl-btn" id="btn-cc" aria-label="Teks langsung (CC)" title="Teks langsung (CC)"><i data-i="captions-off" data-s="22"></i></button>
+        <div class="dropdown up"><button class="ctl-btn" id="btn-react" aria-label="Reaksi"><i data-i="smile" data-s="22"></i></button>
+          <div class="dropdown-menu dropdown-right dark-dd up-menu react-menu" id="react-menu"></div></div>
+        <button class="ctl-btn" id="btn-hand" aria-label="Angkat tangan"><i data-i="hand" data-s="22"></i></button>
+        <button class="ctl-btn" id="btn-layout" aria-label="Tampilkan/sembunyikan presentasi"><i data-i="presentation" data-s="22"></i></button>
+      </div>
+    </footer>
+  </main>
+</div>
+
+<div id="overlay" class="overlay"><div class="ov-box"><div class="spinner"></div><p id="ov-text">Menghubungkan ke meeting…</p></div></div>
+<div id="audio-sink" hidden></div>
+<!--JS:room-->
+</body>
+</html>

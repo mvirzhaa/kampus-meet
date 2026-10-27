@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!--CSS:site-->
+</head>
+<body>
+<!--NAV-->
+<main class="page">
+  <div class="container">
+    <div class="dash-head">
+      <h1>Event &amp; Seminar</h1>
+      <form id="ev-search" style="display:flex;gap:10px;flex:1;max-width:520px">
+        <input id="q" placeholder="Cari judul, narasumber, kategori…" maxlength="80" aria-label="Cari event">
+        <select id="when" aria-label="Waktu" style="max-width:170px"><option value="upcoming">Akan datang</option><option value="past">Sudah lewat</option><option value="all">Semua</option></select>
+      </form>
+    </div>
+    <div class="events-grid" id="ev-list"><div class="empty">Sedang memuat…</div></div>
+  </div>
+</main>
+<!--FOOTER-->
+<!--JS:events-->
+</body>
+</html>

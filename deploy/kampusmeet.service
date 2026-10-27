@@ -1,0 +1,21 @@
+# Alternatif tanpa Docker: salin ke /etc/systemd/system/kampusmeet.service
+[Unit]
+Description=Kampus Meet (aplikasi web)
+After=network.target
+
+[Service]
+Type=simple
+User=kampusmeet
+WorkingDirectory=/opt/kampusmeet
+ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning --env-file=/opt/kampusmeet/.env server/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/kampusmeet/data
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

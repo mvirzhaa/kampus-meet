@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Masuk — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="robots" content="noindex">
+<!--CSS:site-->
+</head>
+<body>
+<!--NAV-->
+<main class="page">
+  <div class="container split">
+    <div>
+      <div class="showcase"><div class="showcase-inner">
+        <div class="big-logo"><i data-i="video" data-s="44"></i></div>
+        <div class="trio">
+          <div><span><i data-i="video" data-s="24"></i></span>Video Conference</div>
+          <div><span><i data-i="calendar" data-s="24"></i></span>Kelola Event</div>
+          <div><span><i data-i="users" data-s="24"></i></span>Meeting Room</div>
+        </div>
+      </div></div>
+      <div class="mini-feats">
+        <div><span><i data-i="shield"></i></span>Aman &amp; Privat</div>
+        <div><span><i data-i="users"></i></span>Multi Peserta</div>
+        <div><span><i data-i="clock"></i></span>Tanpa Batas Waktu</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h1 id="auth-title">Masuk ke akun Anda</h1><p id="auth-sub">Gunakan email kampus untuk membuat meeting, mendaftar event, dan mengunduh sertifikat.</p></div>
+      <div class="panel-body">
+        <div class="tabs" role="tablist">
+          <button type="button" class="active" data-tab="login" role="tab">Masuk</button>
+          <button type="button" data-tab="register" role="tab" id="tab-reg">Daftar</button>
+        </div>
+        <div id="auth-err" class="alert" hidden></div>
+        <form id="f-login" novalidate>
+          <div class="field"><label for="l-email">Email</label><input id="l-email" name="email" type="email" autocomplete="username" required maxlength="254"></div>
+          <div class="field"><label for="l-pw">Password</label>
+            <div class="input-wrap"><input id="l-pw" name="password" type="password" autocomplete="current-password" required maxlength="128">
+            <button type="button" class="suffix pw-toggle" aria-label="Tampilkan password"><i data-i="eye" data-s="18"></i></button></div></div>
+          <button class="btn btn-primary btn-block" type="submit"><i data-i="log-in" data-s="18"></i>Masuk</button>
+        </form>
+        <form id="f-register" hidden novalidate>
+          <div class="field"><label for="r-name">Nama lengkap</label><input id="r-name" name="name" autocomplete="name" required maxlength="80" minlength="2"></div>
+          <div class="field"><label for="r-email">Email</label><input id="r-email" name="email" type="email" autocomplete="email" required maxlength="254"><small id="domain-hint"></small></div>
+          <div class="field"><label for="r-pw">Password</label>
+            <div class="input-wrap"><input id="r-pw" name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128">
+            <button type="button" class="suffix pw-toggle" aria-label="Tampilkan password"><i data-i="eye" data-s="18"></i></button></div>
+            <small>Minimal 8 karakter, berisi huruf dan angka.</small></div>
+          <button class="btn btn-primary btn-block" type="submit"><i data-i="user-plus" data-s="18"></i>Buat Akun</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+<!--JS:login-->
+</body>
+</html>

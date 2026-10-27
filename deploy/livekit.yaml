@@ -1,0 +1,38 @@
+# Konfigurasi LiveKit (SFU) untuk production.
+# Rahasia di bawah diisi otomatis oleh scripts/gen-env.sh (harus sama dengan LIVEKIT_API_SECRET di .env).
+keys:
+  kampusmeet: __LIVEKIT_API_SECRET__
+# Redis dibutuhkan agar LiveKit dapat memberi perintah ke layanan Egress (perekaman)
+redis:
+  address: 127.0.0.1:6379
+  password: __REDIS_PASSWORD__
+port: 7880
+bind_addresses: [""]
+rtc:
+  tcp_port: 7881              # cadangan bila UDP diblokir jaringan
+  port_range_start: 50000
+  port_range_end: 60000       # buka UDP 50000-60000 di firewall
+  use_external_ip: true
+  # Hemat bandwidth server: kirim ulang paket terbatas, kontrol kemacetan aktif
+  congestion_control:
+    enabled: true
+    allow_pause: true         # jeda video peserta yang jaringannya buruk (audio tetap jalan)
+turn:
+  enabled: true               # untuk jaringan kampus/kantor yang ketat
+  udp_port: 3478
+  # Untuk TURN/TLS (melewati firewall yang hanya membuka 443), lihat README.
+room:
+  empty_timeout: 300
+  departure_timeout: 30
+  max_participants: 300
+  enabled_codecs:             # codec ringan & kompatibel luas
+    - mime: audio/opus
+    - mime: audio/red
+    - mime: video/vp8
+    - mime: video/h264
+webhook:
+  api_key: kampusmeet         # harus sama dengan LIVEKIT_API_KEY
+  urls:
+    - http://127.0.0.1:3000/api/livekit/webhook
+logging:
+  level: info

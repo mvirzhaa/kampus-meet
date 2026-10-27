@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panduan — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site-XVLOJQAS.css">
+</head>
+<body>
+<div class="topbar"></div>
+<header class="nav">
+  <div class="container">
+    <a class="brand" href="/" aria-label="Beranda"><span class="logo-slot" data-size="54"></span><span data-app-name>APP</span></a>
+    <button id="nav-toggle" class="icon-btn" aria-label="Menu"><i data-i="menu" data-s="26"></i></button>
+    <nav class="nav-links" aria-label="Navigasi utama">
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Untuk Kampus <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/#kampus"><i data-i="graduation-cap" data-s="18"></i><span>Kuliah Online<small>Kelas daring dosen &amp; mahasiswa</small></span></a>
+          <a href="/#kampus"><i data-i="award" data-s="18"></i><span>Seminar &amp; Sertifikat<small>Event dengan sertifikat otomatis</small></span></a>
+          <a href="/#kampus"><i data-i="building" data-s="18"></i><span>Rapat Fakultas<small>Rapat internal yang aman</small></span></a>
+        </div>
+      </div>
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Informasi <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/panduan"><i data-i="book" data-s="18"></i>Cara Penggunaan</a>
+          <a href="/panduan#faq"><i data-i="info" data-s="18"></i>FAQ &amp; Bantuan</a>
+          <a href="/panduan#keamanan"><i data-i="shield-check" data-s="18"></i>Keamanan &amp; Privasi</a>
+        </div>
+      </div>
+      <a href="/#fitur">Fitur</a>
+      <a href="/event">Jadwal Event</a>
+      <div class="nav-cta">
+        <a class="btn btn-purple" href="/event">Event</a>
+        <span id="nav-auth"><a class="btn btn-login" href="/login">Login</a></span>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="container" style="max-width:920px">
+    <h1 class="sec-title" style="text-align:left">Panduan Penggunaan</h1>
+    <div class="section-card">
+      <h2>Untuk Dosen / Moderator</h2>
+      <ol>
+        <li><b>Login</b> dengan email kampus, lalu buka <b>Dasbor → Meeting Saya</b>.</li>
+        <li>Pilih <b>Mulai Meeting Sekarang</b>, <b>Buat untuk Nanti</b>, atau <b>Jadwalkan Meeting</b>. Setiap room memiliki ID, password, <i>link moderator</i>, dan <i>link peserta</i>.</li>
+        <li>Bagikan <b>link peserta</b> (atau ID + password) ke mahasiswa. Jangan bagikan link moderator.</li>
+        <li>Di dalam room: unggah materi PDF lewat tombol <b>+</b> → <i>Kelola presentasi</i>, gunakan alat whiteboard di sisi kanan slide, mulai <i>polling</i>, atau bagikan layar.</li>
+        <li>Klik ikon roda gigi di daftar <b>Pengguna</b> untuk <i>Mute semua</i>, <i>Kunci peserta</i> (lock viewers), atau <i>Simpan daftar nama</i>. Klik nama peserta untuk menjadikan presenter, moderator, mute, atau mengeluarkan.</li>
+        <li><b>Rekam</b> menyimpan rekaman ke komputer Anda (tidak membebani server). Semua peserta melihat indikator saat rekaman berjalan.</li>
+      </ol>
+    </div>
+    <div class="section-card">
+      <h2>Untuk Mahasiswa / Peserta</h2>
+      <ol>
+        <li>Buka link dari dosen, atau masukkan <b>ID room</b> di beranda lalu isi password.</li>
+        <li>Isi <b>Nama Tampilan</b> sesuai nama &amp; NIM agar mudah diabsen.</li>
+        <li>Pilih <b>Mikrofon</b> untuk ikut bicara atau <b>Hanya mendengar</b> bila sinyal lemah (paling hemat kuota).</li>
+        <li>Gunakan <b>Angkat tangan</b> untuk bertanya, dan chat untuk mengirim pertanyaan tertulis.</li>
+      </ol>
+    </div>
+    <div class="section-card" id="keamanan">
+      <h2>Keamanan &amp; Privasi</h2>
+      <ul>
+        <li>Audio/video terenkripsi di jalur jaringan (DTLS-SRTP, wajib pada WebRTC) dan semua halaman melalui HTTPS.</li>
+        <li>Password akun disimpan dengan hash <i>scrypt</i>; sesi menggunakan cookie HttpOnly + proteksi CSRF.</li>
+        <li>Room dilindungi password atau link undangan acak; percobaan menebak password dibatasi (rate limit).</li>
+        <li>Moderator dapat mengunci fitur peserta, mengeluarkan dan memblokir peserta, serta mengakhiri meeting untuk semua.</li>
+        <li>Data tersimpan di server kampus sendiri; rekaman disimpan di perangkat perekam, bukan di server.</li>
+      </ul>
+    </div>
+    <div class="section-card" id="faq">
+      <h2>FAQ</h2>
+      <h3>Kamera/mikrofon tidak terdeteksi?</h3>
+      <p>Klik ikon gembok di address bar browser, izinkan Kamera &amp; Mikrofon, lalu muat ulang halaman. Pastikan tidak ada aplikasi lain yang sedang memakai kamera.</p>
+      <h3>Suara putus-putus atau video patah-patah?</h3>
+      <p>Buka menu ⋮ → <i>Pengaturan</i> dan aktifkan <i>Mode hemat data</i>, atau matikan kamera. Kualitas video otomatis menyesuaikan jaringan.</p>
+      <h3>Dokumen Word/PowerPoint tidak bisa diunggah?</h3>
+      <p>Simpan/ekspor terlebih dahulu ke PDF (File → Save as → PDF). PDF memberi hasil terbaik dan paling ringan.</p>
+      <h3>Kenapa sertifikat saya belum terbit?</h3>
+      <p>Sertifikat terbit saat Anda keluar dari room dan total kehadiran sudah memenuhi durasi minimum yang ditetapkan panitia. Pastikan Anda login saat mengikuti event.</p>
+    </div>
+  </div>
+</main>
+<footer class="site">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><span class="logo-slot" data-size="40"></span><span data-app-name>APP</span></a>
+        <p>Platform video conference resmi <span data-campus-name></span> untuk kuliah daring, seminar, dan rapat — ringan, aman, dan tanpa instalasi.</p>
+      </div>
+      <div>
+        <h4>Produk</h4>
+        <a href="/dashboard">Meeting Instan</a><a href="/event">Event &amp; Seminar</a><a href="/dashboard#sertifikat">Sertifikat Saya</a><a href="/dashboard">Jadwalkan Meeting</a>
+      </div>
+      <div>
+        <h4>Sumber Daya</h4>
+        <a href="/panduan">Panduan Pengguna</a><a href="/panduan#faq">FAQ</a><a href="/panduan#keamanan">Keamanan &amp; Privasi</a>
+      </div>
+      <div>
+        <h4>Kontak</h4>
+        <a href="#"><span data-campus-name></span></a><a href="/panduan#faq">Bantuan Teknis (UPT TIK)</a>
+      </div>
+    </div>
+    <div class="copy">© <span id="yr">2026</span> <span data-app-name>APP</span> · <span data-campus-name></span></div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/guide-F7HOLX6E.js"></script>
+</body>
+</html>

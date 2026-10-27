@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APP — Video Conference Kampus</title>
+<meta name="description" content="Platform video conference kampus untuk kuliah daring, seminar bersertifikat, dan rapat. Ringan, aman, tanpa instalasi.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/assets/site-XVLOJQAS.css">
+</head>
+<body>
+<div class="topbar"></div>
+<header class="nav">
+  <div class="container">
+    <a class="brand" href="/" aria-label="Beranda"><span class="logo-slot" data-size="54"></span><span data-app-name>APP</span></a>
+    <button id="nav-toggle" class="icon-btn" aria-label="Menu"><i data-i="menu" data-s="26"></i></button>
+    <nav class="nav-links" aria-label="Navigasi utama">
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Untuk Kampus <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/#kampus"><i data-i="graduation-cap" data-s="18"></i><span>Kuliah Online<small>Kelas daring dosen &amp; mahasiswa</small></span></a>
+          <a href="/#kampus"><i data-i="award" data-s="18"></i><span>Seminar &amp; Sertifikat<small>Event dengan sertifikat otomatis</small></span></a>
+          <a href="/#kampus"><i data-i="building" data-s="18"></i><span>Rapat Fakultas<small>Rapat internal yang aman</small></span></a>
+        </div>
+      </div>
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Informasi <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/panduan"><i data-i="book" data-s="18"></i>Cara Penggunaan</a>
+          <a href="/panduan#faq"><i data-i="info" data-s="18"></i>FAQ &amp; Bantuan</a>
+          <a href="/panduan#keamanan"><i data-i="shield-check" data-s="18"></i>Keamanan &amp; Privasi</a>
+        </div>
+      </div>
+      <a href="/#fitur">Fitur</a>
+      <a href="/event">Jadwal Event</a>
+      <div class="nav-cta">
+        <a class="btn btn-purple" href="/event">Event</a>
+        <span id="nav-auth"><a class="btn btn-login" href="/login">Login</a></span>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="container">
+      <div>
+        <h1 data-app-name>APP</h1>
+        <h2>Lebih dari sekadar meeting</h2>
+        <p class="lead">Kelola kuliah daring, seminar, dan rapat kampus dengan mudah, efisien dan terintegrasi, dilengkapi presentasi &amp; whiteboard, polling, serta sertifikat otomatis.</p>
+
+        <div class="card action-card">
+          <div class="head">
+            <span class="badge-ic"><i data-i="user-plus" data-s="26"></i></span>
+            <div><h3>Gabung ke Meeting</h3><p>Masukkan ID room untuk bergabung</p></div>
+          </div>
+          <form class="join-row" id="join-form" autocomplete="off">
+            <label for="room-id" class="sr-only">ID room</label>
+            <input id="room-id" name="room" placeholder="Masukkan ID room" maxlength="200" required>
+            <button class="btn btn-primary" type="submit">Gabung</button>
+          </form>
+        </div>
+
+        <div class="or">Atau</div>
+
+        <div class="card action-card">
+          <div class="head">
+            <span class="badge-ic v"><i data-i="video" data-s="26"></i></span>
+            <div><h3>Mulai Meeting Baru</h3><p>Buat room meeting tanpa perlu ID room</p></div>
+          </div>
+          <div class="new-meeting dropdown">
+            <button class="btn btn-violet" type="button" id="new-btn">Buat Meeting Baru</button>
+            <div class="dropdown-menu">
+              <button type="button" id="nm-now"><i data-i="plus" data-s="18"></i>Mulai Meeting Sekarang</button>
+              <button type="button" id="nm-later"><i data-i="link" data-s="18"></i>Buat meeting untuk nanti</button>
+              <button type="button" id="nm-schedule"><i data-i="calendar" data-s="18"></i>Jadwalkan Meeting</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-art-wrap"><svg class="hero-art" viewBox="0 0 900 500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Ilustrasi ruang meeting dengan enam peserta">
+<defs>
+<clipPath id="win"><rect x="0" y="0" width="900" height="500" rx="26"/></clipPath>
+<linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6f9ce0"/><stop offset=".7" stop-color="#5560b8"/><stop offset="1" stop-color="#6e4bb6"/></linearGradient>
+<symbol id="av" viewBox="0 0 190 190">
+ <path d="M28 190c4-40 30-58 67-58s63 18 67 58z" style="fill:var(--shirt)"/>
+ <rect x="84" y="112" width="22" height="26" rx="8" style="fill:var(--skin)"/>
+ <path d="M60 64c0-26 16-40 35-40s35 14 35 40v34c0 22-16 36-35 36s-35-14-35-36z" style="fill:var(--skin)"/>
+ <path d="M58 70c-2-30 14-48 37-48s40 16 37 48c-8-14-22-22-37-22s-29 8-37 22z" style="fill:var(--hair)"/>
+ <path d="M58 70c-6 30-4 62 6 86l14-6c-8-20-10-48-8-72zM132 70c6 30 4 62-6 86l-14-6c8-20 10-48 8-72z" style="fill:var(--hair);display:var(--lh)"/>
+ <circle cx="82" cy="86" r="4.5" fill="#2a1d17"/><circle cx="108" cy="86" r="4.5" fill="#2a1d17"/>
+ <path d="M84 108c6 6 16 6 22 0" stroke="#7a3a2a" stroke-width="3" fill="none" stroke-linecap="round"/>
+ <g style="display:var(--gl)" fill="none" stroke="#1d1d1d" stroke-width="3.5"><circle cx="82" cy="86" r="11"/><circle cx="108" cy="86" r="11"/><path d="M93 86h4"/></g>
+ <path d="M54 84c0-34 18-52 41-52s41 18 41 52" stroke="#d9dde3" stroke-width="7" fill="none"/>
+ <rect x="46" y="76" width="16" height="30" rx="7" fill="#e9ecf1"/><rect x="128" y="76" width="16" height="30" rx="7" fill="#e9ecf1"/>
+</symbol></defs>
+<g clip-path="url(#win)"><rect width="900" height="500" fill="#081a2e"/>
+<rect x="0" y="0" width="900" height="54" fill="#0a1e35"/>
+<text x="380" y="33" fill="#cfd8e6" font-family="Inter,Segoe UI,Arial" font-size="14" text-anchor="end">Ruang Kelas</text>
+<line x1="398" y1="18" x2="398" y2="38" stroke="#2b4466"/>
+<rect x="414" y="15" width="128" height="26" rx="13" fill="none" stroke="#3b587e"/><circle cx="432" cy="28" r="6" fill="none" stroke="#e2e8f0" stroke-width="2"/><circle cx="432" cy="28" r="2.5" fill="#e2e8f0"/>
+<text x="446" y="33" fill="#e2e8f0" font-family="Inter,Segoe UI,Arial" font-size="13">Mulai rekam</text>
+<circle cx="842" cy="28" r="13" fill="#1f8a73"/><path d="M836 33v-3M840 33v-6M844 33v-9M848 33v-12" stroke="#d5fff4" stroke-width="2" stroke-linecap="round"/>
+<rect x="165" y="62" width="190" height="190" fill="#3f6fa8"/>
+<circle cx="315" cy="112" r="22" fill="#ffffff" opacity=".10"/><rect x="183" y="182" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#e9b48c;--hair:#3a2418;--shirt:#2e6db4;--lh:inline;--gl:none"><use href="#av" x="165" y="62" width="190" height="190"/></g>
+<rect x="169" y="232" width="47" height="16" rx="3" fill="#000" opacity=".35"/><text x="175" y="244" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Sinta</text>
+<rect x="355" y="62" width="190" height="190" fill="#d98a3a"/>
+<circle cx="505" cy="112" r="22" fill="#ffffff" opacity=".10"/><rect x="373" y="182" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#c98b62;--hair:#2b1d16;--shirt:#e7d5b8;--lh:none;--gl:none"><use href="#av" x="355" y="62" width="190" height="190"/></g>
+<rect x="359" y="232" width="40" height="16" rx="3" fill="#000" opacity=".35"/><text x="365" y="244" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Budi</text>
+<rect x="545" y="62" width="190" height="190" fill="#6f8f62"/>
+<circle cx="695" cy="112" r="22" fill="#ffffff" opacity=".10"/><rect x="563" y="182" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#f0c19a;--hair:#b8742f;--shirt:#e57c2c;--lh:inline;--gl:none"><use href="#av" x="545" y="62" width="190" height="190"/></g>
+<rect x="549" y="232" width="40" height="16" rx="3" fill="#000" opacity=".35"/><text x="555" y="244" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Rina</text>
+<rect x="165" y="252" width="190" height="190" fill="#3f9a96"/>
+<circle cx="315" cy="302" r="22" fill="#ffffff" opacity=".10"/><rect x="183" y="372" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#d9a07a;--hair:#2a1a12;--shirt:#d0482e;--lh:inline;--gl:none"><use href="#av" x="165" y="252" width="190" height="190"/></g>
+<rect x="169" y="422" width="40" height="16" rx="3" fill="#000" opacity=".35"/><text x="175" y="434" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Dewi</text>
+<rect x="355" y="252" width="190" height="190" fill="#a2652f"/>
+<circle cx="505" cy="302" r="22" fill="#ffffff" opacity=".10"/><rect x="373" y="372" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#b97c55;--hair:#1f1510;--shirt:#e2b53b;--lh:none;--gl:inline"><use href="#av" x="355" y="252" width="190" height="190"/></g>
+<rect x="359" y="422" width="40" height="16" rx="3" fill="#000" opacity=".35"/><text x="365" y="434" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Andi</text>
+<rect x="545" y="252" width="190" height="190" fill="#c9852f"/>
+<circle cx="695" cy="302" r="22" fill="#ffffff" opacity=".10"/><rect x="563" y="372" width="34" height="24" rx="6" fill="#ffffff" opacity=".09"/>
+<g style="--skin:#c98d63;--hair:#3a2416;--shirt:#e0a52d;--lh:none;--gl:none"><use href="#av" x="545" y="252" width="190" height="190"/></g>
+<rect x="549" y="422" width="47" height="16" rx="3" fill="#000" opacity=".35"/><text x="555" y="434" fill="#fff" font-family="Inter,Segoe UI,Arial" font-size="10.5">Rizky</text>
+<circle cx="450" cy="252" r="44" fill="#fff"/><circle cx="450" cy="252" r="38" fill="url(#lg)"/>
+<rect x="430" y="238" width="28" height="28" rx="7" fill="#fff"/><path d="M460 248l12-7v22l-12-7z" fill="#fff"/><rect x="438" y="246" width="12" height="12" rx="3" fill="#5a63b9"/>
+<circle cx="44" cy="464" r="18" fill="#1f6fd1"/><path d="M44 456v16M36 464h16" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="405" cy="464" r="18" fill="#1f6fd1" stroke="#cbd5e1" stroke-width="0"/>
+<circle cx="450" cy="464" r="18" fill="#1f6fd1" stroke="#cbd5e1" stroke-width="0"/>
+<circle cx="495" cy="464" r="18" fill="none" stroke="#cbd5e1" stroke-width="1.5"/>
+<rect x="401" y="455" width="8" height="12" rx="4" fill="#fff"/><path d="M398 464a7 7 0 0 0 14 0" stroke="#fff" stroke-width="1.8" fill="none"/>
+<rect x="442" y="458" width="11" height="11" rx="2" fill="#fff"/><path d="M454 461l5-3v11l-5-3z" fill="#fff"/>
+<rect x="487" y="457" width="16" height="12" rx="2" stroke="#e2e8f0" stroke-width="1.6" fill="none"/>
+<circle cx="856" cy="464" r="18" fill="none" stroke="#cbd5e1" stroke-width="1.5"/><path d="M851 470v-9a2 2 0 0 1 4 0v5m0-7a2 2 0 0 1 4 0v7m-8 2c0 3 2 5 5 5s5-2 5-6v-6" stroke="#e2e8f0" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+</g></svg></div>
+    </div>
+  </section>
+
+  <section class="block alt" id="fitur">
+    <div class="container">
+      <h2 class="sec-title">Mengapa memilih <span data-app-name>APP</span>?</h2>
+      <p class="sec-sub">Dirancang khusus untuk kebutuhan akademik: hemat kuota mahasiswa, ringan di server kampus, dan aman untuk data sivitas.</p>
+      <div class="features">
+        <div class="feature"><div class="fi"><i data-i="zap" data-s="26"></i></div><h3>Meeting Instan, Satu Klik</h3><p>Mulai kelas atau rapat seketika setelah login. Tanpa instalasi aplikasi — cukup browser di laptop atau ponsel.</p></div>
+        <div class="feature"><div class="fi"><i data-i="award" data-s="26"></i></div><h3>Seminar Bersertifikat</h3><p>Peserta mendaftar, hadir, dan sertifikat digital terbit otomatis berdasarkan durasi kehadiran, lengkap dengan kode verifikasi.</p></div>
+        <div class="feature"><div class="fi"><i data-i="presentation" data-s="26"></i></div><h3>Presentasi &amp; Whiteboard</h3><p>Unggah PDF materi kuliah, beri anotasi pena, bentuk, dan teks — tersinkron ke semua peserta secara real-time.</p></div>
+        <div class="feature"><div class="fi"><i data-i="shield-check" data-s="26"></i></div><h3>Aman &amp; Terkendali</h3><p>Enkripsi DTLS-SRTP, password room, link moderator terpisah, kunci fitur peserta, dan keluarkan/blokir peserta.</p></div>
+        <div class="feature"><div class="fi"><i data-i="gauge" data-s="26"></i></div><h3>Ringan &amp; Hemat Kuota</h3><p>Arsitektur SFU dengan simulcast &amp; adaptive stream: kualitas video menyesuaikan jaringan, mode "hanya mendengar" untuk sinyal lemah.</p></div>
+        <div class="feature"><div class="fi"><i data-i="laptop" data-s="26"></i></div><h3>Akses dari Mana Saja</h3><p>Berjalan di Chrome, Edge, Firefox, dan Safari pada laptop, tablet, maupun smartphone tanpa plugin tambahan.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="kampus">
+    <div class="container">
+      <h2 class="sec-title"><span data-app-name>APP</span> untuk Kampus</h2>
+      <p class="sec-sub">Satu platform untuk seluruh aktivitas daring sivitas akademika <span data-campus-name></span>.</p>
+      <div class="biz">
+        <div class="card"><div class="fi"><i data-i="graduation-cap" data-s="26"></i></div><h3>Kuliah Online</h3><p>Dosen sebagai moderator & presenter, mahasiswa bergabung dengan link kelas. Kunci mikrofon, polling kuis cepat, dan catatan bersama.</p></div>
+        <div class="card"><div class="fi"><i data-i="calendar" data-s="26"></i></div><h3>Seminar &amp; Kuliah Umum</h3><p>Kelola pendaftaran, kuota, rekap kehadiran, dan sertifikat otomatis untuk ratusan peserta.</p></div>
+        <div class="card"><div class="fi"><i data-i="building" data-s="26"></i></div><h3>Rapat Fakultas &amp; Unit</h3><p>Rapat internal dengan password, akses khusus akun kampus, catatan bersama, dan rekaman lokal untuk notulen.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt">
+    <div class="container">
+      <div class="banner">
+        <div>
+          <h2>Fitur ruang meeting lengkap</h2>
+          <p>Semua yang dibutuhkan dosen dan panitia dalam satu ruang: tanpa batas waktu meeting, tanpa iklan, data tersimpan di server kampus sendiri.</p>
+          <a class="btn btn-ghost" href="/panduan">Lihat panduan penggunaan</a>
+        </div>
+        <ul>
+          <li><i data-i="message-square"></i>Chat publik &amp; privat, catatan bersama</li>
+          <li><i data-i="monitor-up"></i>Berbagi layar &amp; presentasi PDF</li>
+          <li><i data-i="poll"></i>Polling / kuis cepat dengan hasil langsung</li>
+          <li><i data-i="hand"></i>Angkat tangan, reaksi, status bicara</li>
+          <li><i data-i="lock"></i>Kunci fitur peserta (lock viewers)</li>
+          <li><i data-i="sparkles"></i>Latar virtual &amp; blur kamera</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="event">
+    <div class="container">
+      <h2 class="sec-title">Event Mendatang</h2>
+      <p class="sec-sub">Seminar, workshop, dan kuliah umum yang dapat Anda ikuti — dapatkan sertifikat setelah hadir.</p>
+      <div class="events-grid" id="ev-list"><div class="empty">Sedang memuat event…</div></div>
+      <p style="text-align:center;margin-top:28px"><a class="btn btn-purple" href="/event"><i data-i="calendar" data-s="18"></i>Lihat Semua Event</a></p>
+    </div>
+  </section>
+
+  <section class="block alt" id="tatacara">
+    <div class="container">
+      <h2 class="sec-title">Tata Cara Mengikuti Event Online</h2>
+      <p class="sec-sub">Empat langkah mudah untuk mengikuti seminar dan mendapatkan sertifikat.</p>
+      <div class="steps">
+        <div class="step"><div class="num">1</div><h3>Login dengan akun Anda</h3><p>Masuk menggunakan akun email kampus yang telah terdaftar.</p></div>
+        <div class="step"><div class="num">2</div><h3>Buka menu "Event"</h3><p>Temukan berbagai event menarik yang tersedia.</p></div>
+        <div class="step"><div class="num">3</div><h3>Pilih event</h3><p>Pilih event sesuai minat dan jadwal Anda.</p></div>
+        <div class="step"><div class="num">4</div><h3>Klik "Daftar Event"</h3><p>Hadiri sesi sesuai durasi minimum, sertifikat terbit otomatis.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+<footer class="site">
+  <div class="container">
+    <div class="cols">
+      <div>
+        <a class="brand" href="/"><span class="logo-slot" data-size="40"></span><span data-app-name>APP</span></a>
+        <p>Platform video conference resmi <span data-campus-name></span> untuk kuliah daring, seminar, dan rapat — ringan, aman, dan tanpa instalasi.</p>
+      </div>
+      <div>
+        <h4>Produk</h4>
+        <a href="/dashboard">Meeting Instan</a><a href="/event">Event &amp; Seminar</a><a href="/dashboard#sertifikat">Sertifikat Saya</a><a href="/dashboard">Jadwalkan Meeting</a>
+      </div>
+      <div>
+        <h4>Sumber Daya</h4>
+        <a href="/panduan">Panduan Pengguna</a><a href="/panduan#faq">FAQ</a><a href="/panduan#keamanan">Keamanan &amp; Privasi</a>
+      </div>
+      <div>
+        <h4>Kontak</h4>
+        <a href="#"><span data-campus-name></span></a><a href="/panduan#faq">Bantuan Teknis (UPT TIK)</a>
+      </div>
+    </div>
+    <div class="copy">© <span id="yr">2026</span> <span data-app-name>APP</span> · <span data-campus-name></span></div>
+  </div>
+</footer>
+
+<script type="module" src="/assets/home-PNKNMDIF.js"></script>
+</body>
+</html>

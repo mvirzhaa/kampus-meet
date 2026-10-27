@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dasbor — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="/assets/site-XVLOJQAS.css">
+</head>
+<body>
+<div class="topbar"></div>
+<header class="nav">
+  <div class="container">
+    <a class="brand" href="/" aria-label="Beranda"><span class="logo-slot" data-size="54"></span><span data-app-name>APP</span></a>
+    <button id="nav-toggle" class="icon-btn" aria-label="Menu"><i data-i="menu" data-s="26"></i></button>
+    <nav class="nav-links" aria-label="Navigasi utama">
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Untuk Kampus <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/#kampus"><i data-i="graduation-cap" data-s="18"></i><span>Kuliah Online<small>Kelas daring dosen &amp; mahasiswa</small></span></a>
+          <a href="/#kampus"><i data-i="award" data-s="18"></i><span>Seminar &amp; Sertifikat<small>Event dengan sertifikat otomatis</small></span></a>
+          <a href="/#kampus"><i data-i="building" data-s="18"></i><span>Rapat Fakultas<small>Rapat internal yang aman</small></span></a>
+        </div>
+      </div>
+      <div class="dropdown">
+        <a href="#" class="dd-toggle">Informasi <i data-i="chevron-down" data-s="18"></i></a>
+        <div class="dropdown-menu">
+          <a href="/panduan"><i data-i="book" data-s="18"></i>Cara Penggunaan</a>
+          <a href="/panduan#faq"><i data-i="info" data-s="18"></i>FAQ &amp; Bantuan</a>
+          <a href="/panduan#keamanan"><i data-i="shield-check" data-s="18"></i>Keamanan &amp; Privasi</a>
+        </div>
+      </div>
+      <a href="/#fitur">Fitur</a>
+      <a href="/event">Jadwal Event</a>
+      <div class="nav-cta">
+        <a class="btn btn-purple" href="/event">Event</a>
+        <span id="nav-auth"><a class="btn btn-login" href="/login">Login</a></span>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="container dash">
+    <aside class="side" aria-label="Menu dasbor">
+      <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Meeting Saya</a>
+      <a href="#event" data-sec="event"><i data-i="calendar"></i>Event</a>
+      <a href="#sertifikat" data-sec="sertifikat"><i data-i="award"></i>Sertifikat</a>
+      <a href="#akun" data-sec="akun"><i data-i="user-cog"></i>Akun</a>
+      <a href="#integrasi" data-sec="integrasi" id="side-int" hidden><i data-i="settings"></i>Integrasi</a>
+    </aside>
+    <div>
+      <section data-panel="meeting">
+        <div class="dash-head"><h1>Meeting Saya</h1><button class="btn btn-ghost btn-sm" id="refresh"><i data-i="refresh" data-s="16"></i>Muat ulang</button></div>
+        <div class="quick">
+          <button type="button" id="q-now"><div class="fi"><i data-i="plus" data-s="24"></i></div><strong>Mulai Meeting Sekarang</strong><small>Buat room dan langsung masuk sebagai moderator</small></button>
+          <button type="button" id="q-later"><div class="fi"><i data-i="link" data-s="24"></i></div><strong>Buat untuk Nanti</strong><small>Dapatkan link moderator &amp; peserta</small></button>
+          <button type="button" id="q-sched"><div class="fi"><i data-i="calendar-plus" data-s="24"></i></div><strong>Jadwalkan Meeting</strong><small>Atur tanggal, jam, dan durasi kelas</small></button>
+        </div>
+        <div class="room-list" id="rooms"></div>
+      </section>
+      <section data-panel="event" hidden>
+        <div class="dash-head"><h1>Event</h1><button class="btn btn-purple" id="new-event"><i data-i="calendar-plus" data-s="18"></i>Buat Event</button></div>
+        <h3>Event yang saya selenggarakan</h3>
+        <div class="room-list" id="ev-org"></div>
+        <h3 style="margin-top:30px">Event yang saya ikuti</h3>
+        <div class="room-list" id="ev-reg"></div>
+      </section>
+      <section data-panel="sertifikat" hidden>
+        <div class="dash-head"><h1>Sertifikat Saya</h1></div>
+        <p class="ev-meta">Sertifikat terbit otomatis setelah Anda menghadiri event sesuai durasi minimum.</p>
+        <div class="room-list" id="certs"></div>
+      </section>
+      <section data-panel="integrasi" hidden>
+        <div class="dash-head"><h1>Integrasi</h1></div>
+        <div id="integrations"></div>
+      </section>
+      <section data-panel="akun" hidden>
+        <div class="dash-head"><h1>Akun</h1></div>
+        <div class="section-card">
+          <h3>Profil</h3>
+          <form id="f-profile" class="grid-2">
+            <div class="field"><label for="p-name">Nama</label><input id="p-name" name="name" required minlength="2" maxlength="80"></div>
+            <div class="field"><label for="p-email">Email</label><input id="p-email" disabled></div>
+            <div><button class="btn btn-primary" type="submit">Simpan Profil</button></div>
+          </form>
+        </div>
+        <div class="section-card">
+          <h3>Ganti Password</h3>
+          <form id="f-pw">
+            <div class="grid-2">
+              <div class="field"><label for="pw-cur">Password lama</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>
+              <div class="field"><label for="pw-new">Password baru</label><input id="pw-new" name="password" type="password" autocomplete="new-password" required minlength="8"></div>
+            </div>
+            <button class="btn btn-primary" type="submit">Ganti Password</button>
+            <small class="ev-meta" style="margin-top:8px">Semua sesi login di perangkat lain akan dikeluarkan.</small>
+          </form>
+        </div>
+      </section>
+    </div>
+  </div>
+</main>
+<script type="module" src="/assets/dashboard-KWABILYS.js"></script>
+</body>
+</html>

@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>APP — Video Conference Kampus</title>
+<meta name="description" content="Platform video conference kampus untuk kuliah daring, seminar bersertifikat, dan rapat. Ringan, aman, tanpa instalasi.">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<!--CSS:site-->
+</head>
+<body>
+<!--NAV-->
+<main>
+  <section class="hero">
+    <div class="container">
+      <div>
+        <h1 data-app-name>APP</h1>
+        <h2>Lebih dari sekadar meeting</h2>
+        <p class="lead">Kelola kuliah daring, seminar, dan rapat kampus dengan mudah, efisien dan terintegrasi, dilengkapi presentasi &amp; whiteboard, polling, serta sertifikat otomatis.</p>
+
+        <div class="card action-card">
+          <div class="head">
+            <span class="badge-ic"><i data-i="user-plus" data-s="26"></i></span>
+            <div><h3>Gabung ke Meeting</h3><p>Masukkan ID room untuk bergabung</p></div>
+          </div>
+          <form class="join-row" id="join-form" autocomplete="off">
+            <label for="room-id" class="sr-only">ID room</label>
+            <input id="room-id" name="room" placeholder="Masukkan ID room" maxlength="200" required>
+            <button class="btn btn-primary" type="submit">Gabung</button>
+          </form>
+        </div>
+
+        <div class="or">Atau</div>
+
+        <div class="card action-card">
+          <div class="head">
+            <span class="badge-ic v"><i data-i="video" data-s="26"></i></span>
+            <div><h3>Mulai Meeting Baru</h3><p>Buat room meeting tanpa perlu ID room</p></div>
+          </div>
+          <div class="new-meeting dropdown">
+            <button class="btn btn-violet" type="button" id="new-btn">Buat Meeting Baru</button>
+            <div class="dropdown-menu">
+              <button type="button" id="nm-now"><i data-i="plus" data-s="18"></i>Mulai Meeting Sekarang</button>
+              <button type="button" id="nm-later"><i data-i="link" data-s="18"></i>Buat meeting untuk nanti</button>
+              <button type="button" id="nm-schedule"><i data-i="calendar" data-s="18"></i>Jadwalkan Meeting</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hero-art-wrap"><!--HERO--></div>
+    </div>
+  </section>
+
+  <section class="block alt" id="fitur">
+    <div class="container">
+      <h2 class="sec-title">Mengapa memilih <span data-app-name>APP</span>?</h2>
+      <p class="sec-sub">Dirancang khusus untuk kebutuhan akademik: hemat kuota mahasiswa, ringan di server kampus, dan aman untuk data sivitas.</p>
+      <div class="features">
+        <div class="feature"><div class="fi"><i data-i="zap" data-s="26"></i></div><h3>Meeting Instan, Satu Klik</h3><p>Mulai kelas atau rapat seketika setelah login. Tanpa instalasi aplikasi — cukup browser di laptop atau ponsel.</p></div>
+        <div class="feature"><div class="fi"><i data-i="award" data-s="26"></i></div><h3>Seminar Bersertifikat</h3><p>Peserta mendaftar, hadir, dan sertifikat digital terbit otomatis berdasarkan durasi kehadiran, lengkap dengan kode verifikasi.</p></div>
+        <div class="feature"><div class="fi"><i data-i="presentation" data-s="26"></i></div><h3>Presentasi &amp; Whiteboard</h3><p>Unggah PDF materi kuliah, beri anotasi pena, bentuk, dan teks — tersinkron ke semua peserta secara real-time.</p></div>
+        <div class="feature"><div class="fi"><i data-i="shield-check" data-s="26"></i></div><h3>Aman &amp; Terkendali</h3><p>Enkripsi DTLS-SRTP, password room, link moderator terpisah, kunci fitur peserta, dan keluarkan/blokir peserta.</p></div>
+        <div class="feature"><div class="fi"><i data-i="gauge" data-s="26"></i></div><h3>Ringan &amp; Hemat Kuota</h3><p>Arsitektur SFU dengan simulcast &amp; adaptive stream: kualitas video menyesuaikan jaringan, mode "hanya mendengar" untuk sinyal lemah.</p></div>
+        <div class="feature"><div class="fi"><i data-i="laptop" data-s="26"></i></div><h3>Akses dari Mana Saja</h3><p>Berjalan di Chrome, Edge, Firefox, dan Safari pada laptop, tablet, maupun smartphone tanpa plugin tambahan.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="kampus">
+    <div class="container">
+      <h2 class="sec-title"><span data-app-name>APP</span> untuk Kampus</h2>
+      <p class="sec-sub">Satu platform untuk seluruh aktivitas daring sivitas akademika <span data-campus-name></span>.</p>
+      <div class="biz">
+        <div class="card"><div class="fi"><i data-i="graduation-cap" data-s="26"></i></div><h3>Kuliah Online</h3><p>Dosen sebagai moderator & presenter, mahasiswa bergabung dengan link kelas. Kunci mikrofon, polling kuis cepat, dan catatan bersama.</p></div>
+        <div class="card"><div class="fi"><i data-i="calendar" data-s="26"></i></div><h3>Seminar &amp; Kuliah Umum</h3><p>Kelola pendaftaran, kuota, rekap kehadiran, dan sertifikat otomatis untuk ratusan peserta.</p></div>
+        <div class="card"><div class="fi"><i data-i="building" data-s="26"></i></div><h3>Rapat Fakultas &amp; Unit</h3><p>Rapat internal dengan password, akses khusus akun kampus, catatan bersama, dan rekaman lokal untuk notulen.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block alt">
+    <div class="container">
+      <div class="banner">
+        <div>
+          <h2>Fitur ruang meeting lengkap</h2>
+          <p>Semua yang dibutuhkan dosen dan panitia dalam satu ruang: tanpa batas waktu meeting, tanpa iklan, data tersimpan di server kampus sendiri.</p>
+          <a class="btn btn-ghost" href="/panduan">Lihat panduan penggunaan</a>
+        </div>
+        <ul>
+          <li><i data-i="message-square"></i>Chat publik &amp; privat, catatan bersama</li>
+          <li><i data-i="monitor-up"></i>Berbagi layar &amp; presentasi PDF</li>
+          <li><i data-i="poll"></i>Polling / kuis cepat dengan hasil langsung</li>
+          <li><i data-i="hand"></i>Angkat tangan, reaksi, status bicara</li>
+          <li><i data-i="lock"></i>Kunci fitur peserta (lock viewers)</li>
+          <li><i data-i="sparkles"></i>Latar virtual &amp; blur kamera</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="event">
+    <div class="container">
+      <h2 class="sec-title">Event Mendatang</h2>
+      <p class="sec-sub">Seminar, workshop, dan kuliah umum yang dapat Anda ikuti — dapatkan sertifikat setelah hadir.</p>
+      <div class="events-grid" id="ev-list"><div class="empty">Sedang memuat event…</div></div>
+      <p style="text-align:center;margin-top:28px"><a class="btn btn-purple" href="/event"><i data-i="calendar" data-s="18"></i>Lihat Semua Event</a></p>
+    </div>
+  </section>
+
+  <section class="block alt" id="tatacara">
+    <div class="container">
+      <h2 class="sec-title">Tata Cara Mengikuti Event Online</h2>
+      <p class="sec-sub">Empat langkah mudah untuk mengikuti seminar dan mendapatkan sertifikat.</p>
+      <div class="steps">
+        <div class="step"><div class="num">1</div><h3>Login dengan akun Anda</h3><p>Masuk menggunakan akun email kampus yang telah terdaftar.</p></div>
+        <div class="step"><div class="num">2</div><h3>Buka menu "Event"</h3><p>Temukan berbagai event menarik yang tersedia.</p></div>
+        <div class="step"><div class="num">3</div><h3>Pilih event</h3><p>Pilih event sesuai minat dan jadwal Anda.</p></div>
+        <div class="step"><div class="num">4</div><h3>Klik "Daftar Event"</h3><p>Hadiri sesi sesuai durasi minimum, sertifikat terbit otomatis.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+<!--FOOTER-->
+<!--JS:home-->
+</body>
+</html>
