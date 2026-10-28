@@ -19,6 +19,12 @@ rtc:
   # "Tidak dapat terhubung ke server media".
   use_external_ip: false
   node_ip: __NODE_IP__
+  # Umumkan JUGA IP internal server, berdampingan dengan node_ip di atas.
+  # Wajib bila Egress berjalan di mesin yang sama: Chrome milik Egress tidak bisa
+  # menghubungi IP publik servernya sendiri bila NAT tidak mendukung hairpin, sehingga
+  # ICE tidak pernah tersambung dan rekaman gagal dengan "Start signal not received".
+  # Peserta dari luar menerima satu kandidat privat tambahan yang langsung mereka buang.
+  advertise_internal_ip: true
   # Hemat bandwidth server: kirim ulang paket terbatas, kontrol kemacetan aktif
   congestion_control:
     enabled: true

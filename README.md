@@ -129,6 +129,44 @@ Skrip memeriksa berurutan penyebab tersering:
 4. **`LIVEKIT_PUBLIC_URL` tidak sama dengan `wss://$MEDIA_DOMAIN`**, atau `deploy/livekit.yaml`
    masih berisi placeholder `__LIVEKIT_API_SECRET__` (`scripts/gen-env.sh` belum dijalankan).
 
+### Rekaman gagal: `Start signal not received`
+
+Gejala: rekaman tampak mulai lalu berhenti sendiri setelah ±20 detik, tidak ada file MP4, dan
+`error` pada tabel `recordings` berbunyi *Start signal not received*.
+
+Egress menjalankan Chrome **di dalam server yang sama** dan menyambung ke LiveKit seperti peserta
+biasa. Bila `rtc.node_ip` hanya berisi IP publik dan NAT tidak mendukung *hairpin*, Chrome itu tidak
+bisa menghubungi IP publik servernya sendiri → ICE gagal → halaman perekam melempar error dan
+memanggil `END_RECORDING` sebelum sempat mengirim `START_RECORDING`.
+
+Buktinya terlihat di log LiveKit — cari baris `removing participant without connection` untuk
+peserta ber-identity `EG_...`:
+
+```
+publisherCandidates: [udp4 host <IP-PUBLIK>:7882, tcp4 host <IP-PUBLIK>:7881]
+connectionType: "unknown"   sessionDuration: "0s"
+```
+
+Perbaikannya ada di `deploy/livekit.yaml` (sudah menjadi bawaan): `rtc.advertise_internal_ip: true`,
+sehingga LiveKit mengumumkan IP internal server berdampingan dengan IP publik.
+
+### Egress crash-loop: `open /etc/egress.yaml: permission denied`
+
+`deploy/egress.yaml` dan `deploy/livekit.yaml` berisi rahasia sehingga dibuat `chmod 600`, tetapi
+container Egress membacanya sebagai **pengguna non-root**. Bila file itu dimiliki root, Egress gagal
+start berulang kali. `scripts/gen-env.sh` sudah menyamakan kepemilikan file dengan uid di dalam
+container; bila file pernah di-`chmod`/`chown` manual, perbaiki dengan:
+
+```bash
+u=$(docker run --rm --entrypoint id livekit/egress:latest -u)
+[ "$u" != "0" ] && chown "$u" deploy/egress.yaml
+docker compose -f deploy/docker-compose.yml --env-file .env restart egress
+```
+
+> **Hati-hati saat `git pull`:** kedua file itu dilacak git dalam bentuk placeholder, sehingga setiap
+> pull akan menimpa versi yang sudah terisi rahasia. Isi ulang placeholder-nya sebelum container
+> mana pun restart.
+
 Bila firewall kampus benar-benar hanya mengizinkan 443, satu-satunya jalan adalah TURN/TLS
 (lihat catatan di bawah) — menambah port lain tidak akan membantu.
 
