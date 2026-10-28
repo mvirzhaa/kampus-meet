@@ -1,11 +1,11 @@
 # HTTPS otomatis (Let's Encrypt). Pastikan DNS kedua domain mengarah ke server ini.
 {$APP_DOMAIN} {
-	reverse_proxy host.docker.internal:3000
+	reverse_proxy 127.0.0.1:3000
 	request_body {
 		max_size 32MB
 	}
 }
 
 {$MEDIA_DOMAIN} {
-	reverse_proxy host.docker.internal:7880
+	reverse_proxy 127.0.0.1:7880
 }

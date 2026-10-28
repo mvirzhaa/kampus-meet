@@ -13,13 +13,18 @@ rtc:
   port_range_start: 50000
   port_range_end: 60000       # buka UDP 50000-60000 di firewall
   use_external_ip: true
+  # Bila server di belakang NAT (IP lokal 10.x/172.x/192.168.x) dan deteksi STUN gagal/salah,
+  # isi IP publik secara manual — tanpa ini browser menerima kandidat ICE berisi IP privat
+  # dan muncul "Tidak dapat terhubung ke server media".
+  # node_ip: 203.0.113.10
   # Hemat bandwidth server: kirim ulang paket terbatas, kontrol kemacetan aktif
   congestion_control:
     enabled: true
     allow_pause: true         # jeda video peserta yang jaringannya buruk (audio tetap jalan)
 turn:
   enabled: true               # untuk jaringan kampus/kantor yang ketat
-  udp_port: 3478
+  udp_port: 3478              # wajib dibuka di firewall, beserta UDP 30000-40000 (port relay)
+  # domain: media.kampus.ac.id  # hanya perlu bila mengaktifkan TURN/TLS (tls_port + cert)
   # Untuk TURN/TLS (melewati firewall yang hanya membuka 443), lihat README.
 room:
   empty_timeout: 300

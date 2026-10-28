@@ -94,6 +94,32 @@ Google tidak menerima unggahan anonim walaupun folder dibagikan publik; file ter
 
 3. Buka `https://meet.uika-bogor.ac.id`, **daftar akun pertama** (otomatis admin), lalu buat meeting.
 
+## Mengatasi "Gagal terhubung ke server media"
+
+Halaman ruang terbuka dan spinner *Menghubungkan ke meeting…* berputar lalu gagal → halaman aplikasi
+(port 443) sudah benar, yang gagal adalah jalur **media** ke LiveKit. Jalankan di server:
+
+```bash
+sh scripts/diagnose.sh
+```
+
+Skrip memeriksa berurutan penyebab tersering:
+
+1. **Record DNS `MEDIA_DOMAIN` belum dibuat.** Subdomain media (mis. `media.meet.uika-bogor.ac.id`)
+   harus punya record A ke IP server, terpisah dari domain aplikasi. Tanpa itu Caddy gagal menerbitkan
+   sertifikat dan `wss://` dari browser langsung putus.
+2. **Firewall menutup port media.** Buka **TCP 7881** dan **UDP 3478, 30000–40000, 50000–60000**
+   di `ufw`/`firewalld` *dan* di security group cloud / firewall kampus. Hanya 80/443 yang terbuka =
+   signaling jalan tetapi ICE tidak pernah tersambung — persis gejala di atas.
+3. **Server di belakang NAT dan IP publik salah terdeteksi.** Periksa baris `nodeIP` pada
+   `docker compose logs livekit`. Bila berisi IP privat (10.x/172.x/192.168.x), isi
+   `rtc.node_ip: <IP publik>` di `deploy/livekit.yaml`, lalu `docker compose restart livekit`.
+4. **`LIVEKIT_PUBLIC_URL` tidak sama dengan `wss://$MEDIA_DOMAIN`**, atau `deploy/livekit.yaml`
+   masih berisi placeholder `__LIVEKIT_API_SECRET__` (`scripts/gen-env.sh` belum dijalankan).
+
+Bila firewall kampus benar-benar hanya mengizinkan 443, satu-satunya jalan adalah TURN/TLS
+(lihat catatan di bawah) — menambah port lain tidak akan membantu.
+
 > Jaringan kampus/kantor yang sangat ketat (hanya port 443): aktifkan TURN/TLS LiveKit dengan subdomain dan sertifikat tersendiri (`turn.tls_port: 5349` + `turn.domain` + `cert_file/key_file`), lihat dokumentasi LiveKit "Deploying → Firewall".
 
 ## Server yang direkomendasikan & kapasitas (perkiraan)
