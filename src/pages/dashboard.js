@@ -5,7 +5,7 @@ import { toXlsx, toPdf, saveBlob } from '../shared/export.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
-if (me.user.role === 'admin') $('#side-int').hidden = false;
+if (me.user.role === 'admin') { $('#side-int').hidden = false; $('#side-admin').hidden = false; }
 
 // ---------- Navigasi seksi ----------
 function show() {
@@ -197,7 +197,7 @@ async function transcripts(room, pick) {
 }
 
 // ---------- Event ----------
-$('#new-event').addEventListener('click', () => eventForm());
+$('#new-event').addEventListener('click', () => eventForm().catch(e => toast(e.message, 'error')));
 async function loadEvents() {
   try {
     const { organized, registered } = await api('GET', '/api/my/events');
@@ -217,7 +217,7 @@ function eventItem(e, own) {
         !own && e.attendedMin != null ? h('span', {}, icon('clock', 15), `Hadir ${e.attendedMin} mnt`) : null)),
     h('div', { class: 'acts' },
       h('a', { class: 'btn btn-primary btn-sm', href: `/event/${e.slug}` }, 'Buka'),
-      own ? h('button', { class: 'btn btn-ghost btn-sm', onclick: () => eventForm(e) }, icon('pencil', 16)) : null,
+      own ? h('button', { class: 'btn btn-ghost btn-sm', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Peserta', onclick: () => participants(e) }, icon('users', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus', onclick: async () => {
         if (!(await confirmDialog('Hapus event?', 'Event, pendaftar, dan room-nya akan dihapus permanen. Sertifikat yang sudah terbit tidak bisa diverifikasi lagi.', 'Hapus'))) return;
@@ -226,14 +226,26 @@ function eventItem(e, own) {
       !own && e.certCode ? h('a', { class: 'btn btn-violet btn-sm', href: `/sertifikat/${e.certCode}` }, icon('award', 16), 'Sertifikat') : null));
 }
 
-function eventForm(ev) {
+/** Kategori dikelola admin di /admin, jadi daftarnya diambil dari server (di-cache sekali). */
+let catsCache;
+async function categorySelect(selected) {
+  if (!catsCache) {
+    try { catsCache = (await api('GET', '/api/categories')).categories; }
+    catch { catsCache = []; }
+  }
+  // Event lama bisa memakai kategori yang sudah dinonaktifkan — tetap tampilkan agar tidak berubah diam-diam
+  const list = selected && !catsCache.includes(selected) ? [selected, ...catsCache] : catsCache;
+  return h('select', { name: 'category' }, list.map(c => h('option', { value: c, selected: selected === c }, c)));
+}
+
+async function eventForm(ev) {
   const now = Math.floor(Date.now() / 1000);
+  const catField = await categorySelect(ev?.category);
   const start = ev?.startsAt || (Math.ceil(now / 3600) + 24) * 3600;
   const f = h('form', {},
     h('div', { class: 'field' }, h('label', { text: 'Judul event' }), h('input', { name: 'title', required: true, minlength: 4, maxlength: 140, value: ev?.title || '' })),
     h('div', { class: 'grid-2' },
-      h('div', { class: 'field' }, h('label', { text: 'Kategori' }), h('select', { name: 'category' },
-        ['Seminar', 'Kuliah Umum', 'Workshop', 'Webinar', 'Pelatihan', 'Rapat', 'Lainnya'].map(c => h('option', { value: c, selected: ev?.category === c }, c)))),
+      h('div', { class: 'field' }, h('label', { text: 'Kategori' }), catField),
       h('div', { class: 'field' }, h('label', { text: 'Narasumber' }), h('input', { name: 'speaker', maxlength: 200, value: ev?.speaker || '' }))),
     h('div', { class: 'grid-2' },
       h('div', { class: 'field' }, h('label', { text: 'Mulai' }), h('input', { name: 'startsAt', type: 'datetime-local', required: true, value: toLocalInput(start) })),

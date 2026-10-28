@@ -5,7 +5,7 @@ import path from 'node:path';
 import { config } from './config.js';
 import { q, now, getSetting, setSetting } from './db.js';
 import { HttpError, json } from './http.js';
-import { requireUser, requireCsrf } from './auth.js';
+import { requireUser, requireCsrf, requireAdmin } from './auth.js';
 import { lk } from './livekit.js';
 import { randomToken, sha256, clean } from './security.js';
 import * as drive from './gdrive.js';
@@ -150,8 +150,6 @@ setTimeout(() => {
 }, 3000).unref();
 
 // ==================== Rute ====================
-const requireAdmin = (req) => { const u = requireUser(req); if (u.role !== 'admin') throw new HttpError(403, 'Khusus admin.'); return u; };
-
 export function registerRecordingRoutes(r, { ownedRoom }) {
   r.get('/api/rooms/:code/recordings', (req, res, { code }) => {
     const { room } = ownedRoom(req, code);

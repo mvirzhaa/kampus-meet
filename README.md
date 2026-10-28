@@ -8,7 +8,8 @@ Nama aplikasi, nama kampus, dan domain email bisa diganti lewat `.env` (`APP_NAM
 
 **Halaman depan & akun**
 - Beranda: gabung dengan ID room, *Buat Meeting Baru* (mulai sekarang / buat untuk nanti / jadwalkan), daftar event mendatang, tata cara mengikuti event.
-- Login & daftar (bisa dibatasi ke email kampus). Pengguna pertama yang mendaftar otomatis menjadi **admin**.
+- Login & daftar (bisa dibatasi ke email kampus). Pengguna pertama yang mendaftar otomatis menjadi **admin**; satu akun bisa dikunci sebagai **super-admin** lewat `ADMIN_EMAIL` di `.env`.
+- **Panel Admin** (`/admin`, khusus admin): kelola **kategori event** (tambah/ubah nama/nonaktifkan/hapus — tanpa perlu ubah kode), kelola **pengguna** (cari, jadikan admin atau turunkan, nonaktifkan akun, reset password, buka kunci login), serta lihat & hapus **seluruh meeting dan event** milik siapa pun.
 - Dasbor: daftar meeting (ID, password, link moderator & peserta, salin undangan, ubah, rekap kehadiran + unduh CSV, hapus), event, sertifikat, akun.
 - Event: buat event (jadwal, kuota, narasumber, durasi minimum hadir), pendaftaran peserta, kehadiran tercatat otomatis, **sertifikat digital otomatis** dengan halaman verifikasi publik dan siap cetak/PDF.
 
@@ -56,6 +57,8 @@ Perkiraan kapasitas (1 server 4 vCPU / 8 GB, uplink 1 Gbps): ±10–15 kelas par
 - **CSRF**: token per sesi + pemeriksaan header `Origin` untuk semua permintaan yang mengubah data.
 - **Rate limit** (memori) untuk login, daftar, join room (anti tebak password), unggah, dan API umum.
 - Header keamanan: CSP ketat (tanpa skrip inline, tanpa CDN), `X-Frame-Options: DENY`, HSTS, `Permissions-Policy`, `nosniff`, COOP/CORP.
+- **Super-admin** (`ADMIN_EMAIL`): perannya dipaksa ulang setiap server start, dan tidak bisa diturunkan, dinonaktifkan, atau di-reset passwordnya lewat panel — sehingga akses admin tidak bisa hilang karena salah klik atau admin lain yang nakal. Admin juga tidak bisa mengubah peran/status akunnya sendiri.
+- Menonaktifkan akun langsung mencabut seluruh sesinya di semua perangkat; reset password oleh admin juga memaksa login ulang.
 - Room: kode acak (±10¹⁴ kombinasi), password room terenkripsi AES-256-GCM, link moderator & peserta dengan kunci acak terpisah (bisa dibuat ulang), opsi khusus pengguna login, event hanya untuk peserta terdaftar.
 - **Peran ditandatangani server**: peran (moderator/peserta) disimpan di token LiveKit sebagai atribut yang tidak bisa diubah peserta. Semua aksi moderator dieksekusi di server. Lock mikrofon/kamera/berbagi layar ditegakkan oleh izin publish di SFU; pesan data dari peserta yang dikunci diabaikan oleh klien lain.
 - Keluarkan & blokir (24 jam) berdasarkan akun atau perangkat. Token media berumur **10 menit** (diperbarui otomatis oleh LiveKit selama terhubung); halaman ruang selalu meminta token baru ke server, dan webhook LiveKit mengeluarkan siapa pun yang mencoba masuk memakai token lama milik peserta yang diblokir. Saat peserta tersambung ulang, peran dan izinnya disamakan lagi dengan data server.
@@ -162,7 +165,7 @@ npm run dev                 # http://localhost:3000
 
 Struktur:
 ```
-server/        index.js (router), auth.js, rooms.js (join, moderator, presentasi, webhook), events.js, livekit.js, db.js, security.js
+server/        index.js (router), auth.js, rooms.js (join, moderator, presentasi, webhook), events.js, admin.js (panel admin), livekit.js, db.js, security.js
 src/html/      templat halaman + partial (navbar, footer, ilustrasi)
 src/pages/     skrip tiap halaman situs
 src/room/      ruang meeting: main, media (video/audio), panels (pengguna/chat/catatan/polling), presentation (PDF+whiteboard), controls, recorder, processors

@@ -3,19 +3,21 @@ import { config } from './config.js';
 import './db.js';
 import { Router, HttpError, json, securityHeaders, serveStatic, sendHtml, checkOrigin, clientIp } from './http.js';
 import { registerAuthRoutes } from './auth.js';
-import { registerRoomRoutes, createRoomRecord } from './rooms.js';
+import { registerRoomRoutes, createRoomRecord, uploadsDir } from './rooms.js';
 import { registerEventRoutes } from './events.js';
+import { registerAdminRoutes } from './admin.js';
 import { limiters } from './security.js';
 
 const api = new Router();
 registerAuthRoutes(api);
 registerRoomRoutes(api);
 registerEventRoutes(api, { createRoomRecord });
+registerAdminRoutes(api, { uploadsDir });
 api.get('/api/health', (req, res) => json(res, 200, { ok: true }));
 
 // Halaman (clean URL → file HTML statis)
 const pages = [
-  [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'],
+  [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'], [/^\/admin\/?$/, 'admin.html'],
   [/^\/j\/[a-z-]{6,20}\/?$/, 'join.html'], [/^\/r\/[a-z-]{6,20}\/?$/, 'room.html'], [/^\/rec\/[a-z-]{6,20}\/?$/, 'room.html'],
   [/^\/event\/?$/, 'events.html'], [/^\/event\/[\w-]{3,80}\/?$/, 'event.html'],
   [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/panduan\/?$/, 'guide.html'],

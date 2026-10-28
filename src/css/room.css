@@ -1,10 +1,15 @@
 /* ===== Ruang meeting ===== */
 .room-body { margin: 0; height: 100vh; height: 100dvh; overflow: hidden; background: #06172a; }
 .room { display: grid; grid-template-columns: 220px 320px 1fr; height: 100%; }
-.room.nav-hidden { grid-template-columns: 0 0 1fr; }
-.room.nav-hidden .r-nav, .room.nav-hidden .r-panel { display: none; }
-.room.panel-hidden { grid-template-columns: 220px 0 1fr; }
+/* Jumlah kolom HARUS sama dengan jumlah anak yang masih berada di dalam grid.
+   Panel yang disembunyikan memakai display:none sehingga keluar dari alur grid;
+   bila jumlah kolom tidak ikut dikurangi, .stage akan terlempar ke kolom selebar 0
+   dan seluruh isi panggung (PDF, toolbar, kontrol) ikut mengecil/berantakan. */
+.room.panel-hidden { grid-template-columns: 220px 1fr; }
 .room.panel-hidden .r-panel { display: none; }
+/* Ditaruh setelah .panel-hidden agar menang saat kedua kelas aktif bersamaan. */
+.room.nav-hidden { grid-template-columns: 1fr; }
+.room.nav-hidden .r-nav, .room.nav-hidden .r-panel { display: none; }
 
 /* --- Navigasi kiri --- */
 .r-nav { background: #f3f5f8; border-right: 1px solid #dde3ea; display: flex; flex-direction: column; overflow: hidden; color: #2f3b4c; }
@@ -225,6 +230,7 @@ input[type=range] { padding: 0; accent-color: #2f80ed; }
 /* --- Responsif (ponsel/tablet) --- */
 @media (max-width: 1100px) {
   .room { grid-template-columns: 200px 280px 1fr; }
+  .room.panel-hidden { grid-template-columns: 200px 1fr; }
   .tile { width: 170px; }
 }
 @media (max-width: 860px) {

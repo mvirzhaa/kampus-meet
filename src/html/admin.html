@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Panel Admin — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<meta name="robots" content="noindex">
+<!--CSS:site-->
+</head>
+<body>
+<!--NAV-->
+<main class="page">
+  <div class="container dash">
+    <aside class="side" aria-label="Menu admin">
+      <a href="#kategori" data-sec="kategori"><i data-i="list-checks"></i>Kategori Event</a>
+      <a href="#pengguna" data-sec="pengguna"><i data-i="users"></i>Pengguna</a>
+      <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Semua Meeting</a>
+      <a href="#event" data-sec="event"><i data-i="calendar"></i>Semua Event</a>
+      <a href="/dashboard#integrasi"><i data-i="settings"></i>Integrasi</a>
+      <a href="/dashboard"><i data-i="grid"></i>Kembali ke Dasbor</a>
+    </aside>
+    <div>
+      <div class="stats" id="overview" hidden></div>
+
+      <section data-panel="kategori" hidden>
+        <div class="dash-head">
+          <h1>Kategori Event</h1>
+          <button class="btn btn-primary" id="cat-new"><i data-i="plus" data-s="18"></i>Tambah Kategori</button>
+        </div>
+        <p class="ev-meta">Kategori yang dinonaktifkan tidak muncul lagi saat membuat event baru, tetapi event lama yang memakainya tetap utuh.</p>
+        <div id="cats"></div>
+      </section>
+
+      <section data-panel="pengguna" hidden>
+        <div class="dash-head">
+          <h1>Pengguna</h1>
+          <div class="field" style="margin:0"><input id="u-q" type="search" placeholder="Cari nama atau email…" maxlength="80" aria-label="Cari pengguna"></div>
+        </div>
+        <div id="users"></div>
+      </section>
+
+      <section data-panel="meeting" hidden>
+        <div class="dash-head">
+          <h1>Semua Meeting</h1>
+          <div class="field" style="margin:0"><input id="r-q" type="search" placeholder="Cari nama, ID room, pemilik…" maxlength="80" aria-label="Cari meeting"></div>
+        </div>
+        <div class="room-list" id="rooms"></div>
+      </section>
+
+      <section data-panel="event" hidden>
+        <div class="dash-head">
+          <h1>Semua Event</h1>
+          <div class="field" style="margin:0"><input id="e-q" type="search" placeholder="Cari judul, kategori, penyelenggara…" maxlength="80" aria-label="Cari event"></div>
+        </div>
+        <div class="room-list" id="events"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<!--JS:admin-->
+</body>
+</html>

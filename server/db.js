@@ -156,12 +156,23 @@ CREATE TABLE IF NOT EXISTS transcripts (
   ts INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tr_room ON transcripts(room_id, session, ts);
+-- Kategori event, dikelola admin lewat panel (sebelumnya hardcode di kode).
+-- events.category tetap menyimpan NAMA kategori supaya sertifikat lama tetap terbaca.
+CREATE TABLE IF NOT EXISTS categories (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  sort INTEGER NOT NULL DEFAULT 0,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);
 `);
 
 // Migrasi kolom (aman dijalankan berulang)
 for (const sql of [
   'ALTER TABLE event_regs ADD COLUMN first_join INTEGER',
   'ALTER TABLE event_regs ADD COLUMN last_leave INTEGER',
+  // active = bisa login; disabled = diblokir admin (sesi aktifnya ikut dicabut)
+  "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 
 const cache = new Map();
@@ -173,6 +184,23 @@ export const getSetting = (key) => q('SELECT value FROM settings WHERE key = ?')
 export const setSetting = (key, value) => value == null
   ? q('DELETE FROM settings WHERE key = ?').run(key)
   : q('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value').run(key, String(value));
+
+// Isi kategori bawaan sekali saja, sekaligus menyerap kategori yang sudah terpakai
+// oleh event lama agar tidak ada event yang kategorinya hilang setelah pembaruan.
+if (!q('SELECT 1 FROM categories LIMIT 1').get()) {
+  const seed = ['Seminar', 'Kuliah Umum', 'Workshop', 'Webinar', 'Pelatihan', 'Rapat', 'Lainnya'];
+  for (const r of q('SELECT DISTINCT category FROM events').all()) {
+    if (r.category && !seed.some(c => c.toLowerCase() === r.category.toLowerCase())) seed.push(r.category);
+  }
+  const ins = q('INSERT OR IGNORE INTO categories (name, sort, active, created_at) VALUES (?,?,1,?)');
+  seed.forEach((name, i) => ins.run(name, i * 10, Math.floor(Date.now() / 1000)));
+}
+
+// Super-admin dari .env: paksa perannya setiap kali server start, agar akses tidak
+// bisa hilang karena salah klik di panel atau perubahan langsung di database.
+if (config.adminEmail) {
+  q("UPDATE users SET role = 'admin', status = 'active' WHERE email = ?").run(config.adminEmail);
+}
 
 export function tx(fn) {
   db.exec('BEGIN');

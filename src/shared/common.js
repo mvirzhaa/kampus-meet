@@ -124,6 +124,7 @@ export async function initSite() {
         h('a', { href: '/dashboard#event' }, icon('calendar', 16), 'Event Saya'),
         h('a', { href: '/dashboard#sertifikat' }, icon('award', 16), 'Sertifikat Saya'),
         h('a', { href: '/dashboard#akun' }, icon('user-cog', 16), 'Akun'),
+        d.user.role === 'admin' ? h('a', { href: '/admin' }, icon('shield-check', 16), 'Panel Admin') : null,
         h('button', { type: 'button', onclick: logout }, icon('log-out', 16), 'Keluar'));
       slot.append(h('div', { class: 'dropdown user-dd' },
         h('button', { class: 'user-btn', type: 'button', 'aria-haspopup': 'true' },

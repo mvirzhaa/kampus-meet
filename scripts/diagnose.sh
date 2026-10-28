@@ -98,8 +98,7 @@ cat <<TXT
   TCP 7881 : nc -vz  -w5 $INBOUND 7881
   UDP 7882 : nc -vzu -w5 $INBOUND 7882
   UDP 3478 : nc -vzu -w5 $INBOUND 3478
-  Media    : curl -sS -o /dev/null -w '%{http_code}
-' https://$MEDIA_DOMAIN/
+  Media    : curl -sS -o /dev/null -w '%{http_code}\n' https://$MEDIA_DOMAIN/
   Browser  : buka https://$APP_DOMAIN , masuk meeting, F12 -> Console & Network.
              Catat error berwarna merah dan status koneksi wss://$MEDIA_DOMAIN/rtc
 TXT

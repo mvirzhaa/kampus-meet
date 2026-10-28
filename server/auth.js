@@ -10,8 +10,10 @@ export function getSession(req) {
   const tok = parseCookies(req)[COOKIE];
   let s = null;
   if (tok && tok.length < 100) {
+    // status = 'disabled' → sesi langsung tidak berlaku di semua perangkat
     s = q(`SELECT s.id, s.csrf, s.expires_at, u.id AS uid, u.email, u.name, u.role
-           FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ? AND s.expires_at > ?`).get(sha256(tok), now()) || null;
+           FROM sessions s JOIN users u ON u.id = s.user_id
+           WHERE s.id = ? AND s.expires_at > ? AND u.status = 'active'`).get(sha256(tok), now()) || null;
     // Perpanjang sesi (sliding) maksimal sekali per jam
     if (s && s.expires_at - now() < config.sessionDays * 86400 - 3600) {
       q('UPDATE sessions SET expires_at = ? WHERE id = ?').run(now() + config.sessionDays * 86400, s.id);
@@ -28,6 +30,15 @@ export function requireUser(req) {
   if (!u) throw new HttpError(401, 'Silakan login terlebih dahulu.');
   return u;
 }
+
+export function requireAdmin(req) {
+  const u = requireUser(req);
+  if (u.role !== 'admin') throw new HttpError(403, 'Khusus admin.');
+  return u;
+}
+
+/** Super-admin dari .env: tidak bisa diturunkan atau dinonaktifkan oleh siapa pun. */
+export const isSuperAdmin = (email) => !!config.adminEmail && String(email || '').toLowerCase() === config.adminEmail;
 
 /** Wajib untuk semua aksi yang mengubah data oleh pengguna login. */
 export function requireCsrf(req) {
@@ -53,7 +64,7 @@ export function registerAuthRoutes(r) {
   r.get('/api/me', (req, res) => {
     const s = getSession(req);
     json(res, 200, {
-      user: s ? { id: s.uid, email: s.email, name: s.name, role: s.role } : null,
+      user: s ? { id: s.uid, email: s.email, name: s.name, role: s.role, superAdmin: isSuperAdmin(s.email) } : null,
       csrf: s?.csrf || null,
       app: { name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains },
     });
@@ -74,7 +85,7 @@ export function registerAuthRoutes(r) {
     if (q('SELECT 1 FROM users WHERE email = ?').get(email)) throw new HttpError(409, 'Email sudah terdaftar. Silakan login.');
     const first = !q('SELECT 1 FROM users LIMIT 1').get();
     const info = q('INSERT INTO users (email, name, password_hash, role, created_at) VALUES (?,?,?,?,?)')
-      .run(email, name, await hashPassword(b.password), first ? 'admin' : 'user', now());
+      .run(email, name, await hashPassword(b.password), (first || isSuperAdmin(email)) ? 'admin' : 'user', now());
     const csrf = await createSession(req, res, Number(info.lastInsertRowid));
     json(res, 201, { ok: true, csrf });
   });
@@ -85,9 +96,12 @@ export function registerAuthRoutes(r) {
     const b = await readJson(req);
     const email = clean(b.email, 254).toLowerCase();
     rate(limiters.login, 'e:' + email);
-    const u = q('SELECT id, password_hash, locked_until, failed_logins FROM users WHERE email = ?').get(email);
+    const u = q('SELECT id, password_hash, locked_until, failed_logins, status FROM users WHERE email = ?').get(email);
     const fail = () => new HttpError(401, 'Email atau password salah.');
     if (!u) { await dummyVerify(b.password); throw fail(); }
+    // Password tetap diverifikasi dulu agar pesan ini tidak membocorkan email mana yang terdaftar
+    if (u.status !== 'active' && !(await verifyPassword(String(b.password || ''), u.password_hash))) throw fail();
+    if (u.status !== 'active') throw new HttpError(403, 'Akun Anda dinonaktifkan oleh admin.');
     if (u.locked_until > now()) throw new HttpError(423, 'Akun dikunci sementara karena terlalu banyak percobaan gagal. Coba lagi nanti.');
     if (!(await verifyPassword(String(b.password || ''), u.password_hash))) {
       const f = u.failed_logins + 1;

@@ -21,6 +21,9 @@ export const config = {
   // Kosongkan untuk mengizinkan semua domain email saat pendaftaran
   allowedEmailDomains: env('ALLOWED_EMAIL_DOMAINS', '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
   allowRegistration: bool('ALLOW_REGISTRATION', true),
+  // Super-admin tetap: akun dengan email ini selalu berperan admin dan tidak bisa
+  // diturunkan/dinonaktifkan oleh siapa pun (termasuk admin lain).
+  adminEmail: env('ADMIN_EMAIL', '').toLowerCase(),
 
   dataDir: path.resolve(root, env('DATA_DIR', 'data')),
   maxUploadMb: int('MAX_UPLOAD_MB', 30),

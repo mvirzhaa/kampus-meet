@@ -10,7 +10,7 @@ import { roomCode, numericPassword, randomToken, safeEqual, limiters, clean, cle
 import { openPresence, closePresence, closeAllPresence, isOnline, presenceSessions, presenceReport } from './presence.js';
 import { startServerRecording, stopServerRecording, onEgressWebhook, recordingActive, registerRecordingRoutes } from './recordings.js';
 
-const uploadsDir = path.join(config.dataDir, 'uploads');
+export const uploadsDir = path.join(config.dataDir, 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
 
 const DEFAULT_LOCKS = { webcam: false, mic: false, seeCams: false, publicChat: false, privateChat: false, notes: false, seeUsers: false };

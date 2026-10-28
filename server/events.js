@@ -5,8 +5,7 @@ import { q, now, tx } from './db.js';
 import { HttpError, json, readJson } from './http.js';
 import { currentUser, requireUser, requireCsrf } from './auth.js';
 import { clean, cleanMultiline, randomToken } from './security.js';
-
-const CATS = ['Seminar', 'Kuliah Umum', 'Workshop', 'Webinar', 'Pelatihan', 'Rapat', 'Lainnya'];
+import { validCategory, fallbackCategory } from './admin.js';
 
 function slugify(title) {
   const base = title.toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').slice(0, 50) || 'event';
@@ -30,7 +29,7 @@ function eventInput(b, partial) {
   if (!partial || b.title !== undefined) { o.title = clean(b.title, 140); if (o.title.length < 4) throw new HttpError(400, 'Judul event minimal 4 karakter.'); }
   if (b.description !== undefined) o.description = cleanMultiline(b.description, 4000);
   if (b.speaker !== undefined) o.speaker = clean(b.speaker, 200);
-  if (b.category !== undefined) o.category = CATS.includes(b.category) ? b.category : 'Lainnya';
+  if (b.category !== undefined) o.category = validCategory(b.category) || fallbackCategory();
   if (!partial || b.startsAt !== undefined) o.starts_at = parseInt(b.startsAt, 10);
   if (!partial || b.endsAt !== undefined) o.ends_at = parseInt(b.endsAt, 10);
   if (o.starts_at !== undefined && !(o.starts_at > 0)) throw new HttpError(400, 'Waktu mulai tidak valid.');
@@ -103,7 +102,7 @@ export function registerEventRoutes(r, { createRoomRecord }) {
       const room = createRoomRecord(u.id, { name: data.title, allowGuests: false, muteOnJoin: true, password: '', welcome: `Selamat datang di ${data.title}.` });
       const slug = slugify(data.title);
       const info = q(`INSERT INTO events (slug, owner_id, room_id, title, description, speaker, category, starts_at, ends_at, quota, certificate, min_attend_min, published, created_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(slug, u.id, room.id, data.title, data.description ?? '', data.speaker ?? '', data.category ?? 'Seminar',
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(slug, u.id, room.id, data.title, data.description ?? '', data.speaker ?? '', data.category ?? fallbackCategory(),
         data.starts_at, data.ends_at, data.quota ?? 0, data.certificate ?? 1, data.min_attend_min ?? config.certMinMinutes, data.published ?? 1, now());
       return q('SELECT * FROM events WHERE id = ?').get(Number(info.lastInsertRowid));
     });
