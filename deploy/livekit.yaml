@@ -9,21 +9,25 @@ redis:
 port: 7880
 bind_addresses: [""]
 rtc:
-  tcp_port: 7881              # cadangan bila UDP diblokir jaringan
-  port_range_start: 50000
-  port_range_end: 60000       # buka UDP 50000-60000 di firewall
-  use_external_ip: true
-  # Bila server di belakang NAT (IP lokal 10.x/172.x/192.168.x) dan deteksi STUN gagal/salah,
-  # isi IP publik secara manual — tanpa ini browser menerima kandidat ICE berisi IP privat
-  # dan muncul "Tidak dapat terhubung ke server media".
-  # node_ip: 203.0.113.10
+  tcp_port: 7881              # cadangan bila UDP diblokir jaringan klien
+  udp_port: 7882              # SATU port UDP untuk semua peserta (mux); jauh lebih mudah di-forward
+                              # di NAT daripada rentang 50000-60000. Jangan isi port_range_* bersamaan.
+  # IP PUBLIK yang dipakai browser untuk menghubungi server ini — harus sama dengan record A domain.
+  # Diisi otomatis oleh scripts/gen-env.sh. WAJIB benar bila server di belakang NAT: IP keluar
+  # (yang dideteksi STUN) sering BERBEDA dengan IP masuk, dan LiveKit yang salah menebak membuat
+  # browser menerima kandidat ICE ke alamat yang tidak bisa dihubungi →
+  # "Tidak dapat terhubung ke server media".
+  use_external_ip: false
+  node_ip: __NODE_IP__
   # Hemat bandwidth server: kirim ulang paket terbatas, kontrol kemacetan aktif
   congestion_control:
     enabled: true
     allow_pause: true         # jeda video peserta yang jaringannya buruk (audio tetap jalan)
 turn:
   enabled: true               # untuk jaringan kampus/kantor yang ketat
-  udp_port: 3478              # wajib dibuka di firewall, beserta UDP 30000-40000 (port relay)
+  udp_port: 3478              # wajib dibuka di firewall, beserta rentang relay di bawah
+  relay_range_start: 30000
+  relay_range_end: 31000      # 1001 port relay; cukup banyak, tapi ringan untuk di-forward di NAT
   # domain: media.kampus.ac.id  # hanya perlu bila mengaktifkan TURN/TLS (tls_port + cert)
   # Untuk TURN/TLS (melewati firewall yang hanya membuka 443), lihat README.
 room:

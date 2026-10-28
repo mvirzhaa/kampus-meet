@@ -24,7 +24,7 @@ case "$LK_PUBLIC" in
   "wss://$MEDIA_DOMAIN") ok "LIVEKIT_PUBLIC_URL cocok dengan MEDIA_DOMAIN" ;;
   *) bad "LIVEKIT_PUBLIC_URL ($LK_PUBLIC) TIDAK sama dengan wss://$MEDIA_DOMAIN" ;;
 esac
-if grep -q '__LIVEKIT_API_SECRET__\|__REDIS_PASSWORD__' deploy/livekit.yaml deploy/egress.yaml 2>/dev/null; then
+if grep -q '__LIVEKIT_API_SECRET__\|__REDIS_PASSWORD__\|__NODE_IP__' deploy/livekit.yaml deploy/egress.yaml 2>/dev/null; then
   bad "deploy/livekit.yaml atau egress.yaml masih berisi placeholder __..__ (gen-env.sh belum dijalankan)"
 else ok "livekit.yaml/egress.yaml sudah terisi rahasia"; fi
 YKEY=$(grep -E '^  [A-Za-z0-9_-]+:' deploy/livekit.yaml | head -1 | sed 's/^  //; s/:.*//')
@@ -40,8 +40,10 @@ for d in "$APP_DOMAIN" "$MEDIA_DOMAIN"; do
   IPS=$(getent ahostsv4 "$d" 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ')
   if [ -z "$IPS" ]; then bad "$d TIDAK punya record A (ini penyebab paling umum!)"
   elif echo "$IPS" | grep -q "$PUB"; then ok "$d -> $IPS"
-  else warn "$d -> $IPS  (bukan IP server $PUB; wajar bila di belakang NAT/firewall kampus)"; fi
+  else warn "$d -> $IPS  (berbeda dari IP keluar server $PUB; server di belakang NAT)"; fi
 done
+# IP MASUK = yang dihubungi browser; inilah yang harus diumumkan LiveKit, bukan IP keluar.
+INBOUND=$(getent ahostsv4 "$APP_DOMAIN" 2>/dev/null | awk '{print $1}' | head -1)
 
 hdr "3. Container & port yang mendengarkan"
 docker compose -f deploy/docker-compose.yml --env-file .env ps 2>/dev/null || docker ps --format '  {{.Names}}\t{{.Status}}'
@@ -55,9 +57,15 @@ echo "  -- IP yang diumumkan LiveKit ke browser (nodeIP / NAT1To1) --"
 docker compose -f deploy/docker-compose.yml --env-file .env logs livekit 2>/dev/null | grep -iE 'external ip|nodeIP|NAT1To1|starting LiveKit' | tail -6 | sed 's/^/  /'
 NODEIP=$(docker compose -f deploy/docker-compose.yml --env-file .env logs livekit 2>/dev/null | grep -o '"nodeIP": "[^"]*"' | tail -1 | cut -d'"' -f4)
 if [ -n "$NODEIP" ]; then
-  if [ "$NODEIP" = "$PUB" ]; then ok "nodeIP = IP publik ($NODEIP)"
-  else bad "nodeIP=$NODEIP TAPI IP publik=$PUB -> kandidat ICE salah. Set rtc.node_ip/external_ip di deploy/livekit.yaml"; fi
+  if [ "$NODEIP" = "$INBOUND" ]; then ok "nodeIP = IP yang dihubungi browser ($NODEIP)"
+  else
+    bad "nodeIP=$NODEIP TAPI browser menghubungi $INBOUND -> kandidat ICE menunjuk alamat yang salah."
+    echo "       Perbaiki di deploy/livekit.yaml:  use_external_ip: false  +  node_ip: $INBOUND"
+    echo "       lalu: docker compose -f deploy/docker-compose.yml --env-file .env restart livekit"
+  fi
 fi
+echo "  -- port UDP yang dipakai LiveKit --"
+grep -E '^\s*(udp_port|port_range_start|port_range_end):' deploy/livekit.yaml | sed 's/^/  /'
 
 hdr "5. Jalur publik media (HTTPS/WSS lewat Caddy)"
 if [ -n "$MEDIA_DOMAIN" ]; then
@@ -81,12 +89,17 @@ elif command -v firewall-cmd >/dev/null 2>&1; then
 else
   echo "  (ufw/firewalld tidak aktif — cek juga security group cloud / firewall kampus)"
 fi
-echo "  Wajib terbuka: TCP 80,443,7881 | UDP 3478, 50000-60000, 30000-40000"
+echo "  Wajib terbuka/di-forward ke server ini:"
+echo "    TCP 80, 443, 7881   |   UDP 443(HTTP3), 7882, 3478, 30000-31000"
 
 hdr "7. Uji dari LUAR (jalankan di laptop, bukan di server)"
 cat <<TXT
-  TCP 7881 : nc -vz -w5 $PUB 7881
-  UDP 3478 : nc -vzu -w5 $PUB 3478
+  TCP 443  : nc -vz  -w5 $INBOUND 443
+  TCP 7881 : nc -vz  -w5 $INBOUND 7881
+  UDP 7882 : nc -vzu -w5 $INBOUND 7882
+  UDP 3478 : nc -vzu -w5 $INBOUND 3478
+  Media    : curl -sS -o /dev/null -w '%{http_code}
+' https://$MEDIA_DOMAIN/
   Browser  : buka https://$APP_DOMAIN , masuk meeting, F12 -> Console & Network.
              Catat error berwarna merah dan status koneksi wss://$MEDIA_DOMAIN/rtc
 TXT

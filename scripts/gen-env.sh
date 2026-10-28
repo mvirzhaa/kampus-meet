@@ -1,8 +1,14 @@
 #!/bin/sh
-# Membuat file .env dengan rahasia acak. Pemakaian: sh scripts/gen-env.sh meet.kampus.ac.id media.meet.kampus.ac.id
+# Membuat file .env dengan rahasia acak.
+# Pemakaian: sh scripts/gen-env.sh meet.kampus.ac.id media.meet.kampus.ac.id [IP-publik]
+# IP publik opsional; bila dikosongkan diambil dari record A domain aplikasi (= IP yang dihubungi
+# browser). Nilai ini dipakai LiveKit sebagai alamat kandidat ICE, jadi harus IP MASUK, bukan IP
+# keluar server (pada server di belakang NAT keduanya sering berbeda).
 set -e
 APP=${1:?domain aplikasi, mis. meet.uika-bogor.ac.id}
 MEDIA=${2:?domain media, mis. media.meet.uika-bogor.ac.id}
+NODE_IP=${3:-$(getent ahostsv4 "$APP" 2>/dev/null | awk '{print $1}' | head -1)}
+[ -n "$NODE_IP" ] || { echo "Tidak bisa menentukan IP publik dari $APP. Beri sebagai argumen ke-3."; exit 1; }
 [ -f .env ] && { echo ".env sudah ada, tidak ditimpa."; exit 1; }
 rand() { head -c 48 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 48; }
 sed -e "s#^PUBLIC_URL=.*#PUBLIC_URL=https://$APP#" \
@@ -14,10 +20,11 @@ printf "APP_DOMAIN=%s\nMEDIA_DOMAIN=%s\n" "$APP" "$MEDIA" >> .env
 SECRET=$(grep '^LIVEKIT_API_SECRET=' .env | cut -d= -f2)
 REDISPW=$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2)
 for f in deploy/livekit.yaml deploy/egress.yaml; do
-  sed -i -e "s#__LIVEKIT_API_SECRET__#$SECRET#" -e "s#__REDIS_PASSWORD__#$REDISPW#" "$f"
+  sed -i -e "s#__LIVEKIT_API_SECRET__#$SECRET#" -e "s#__REDIS_PASSWORD__#$REDISPW#" -e "s#__NODE_IP__#$NODE_IP#" "$f"
   chmod 600 "$f"
 done
 # Folder MP4 sementara, dipakai bersama oleh Egress (menulis) dan aplikasi (mengunggah lalu menghapus)
 mkdir -p recordings && chmod 777 recordings
 chmod 600 .env
+echo "LiveKit akan mengumumkan IP $NODE_IP ke browser (rtc.node_ip)."
 echo "File .env dibuat. Periksa APP_NAME, CAMPUS_NAME, ALLOWED_EMAIL_DOMAINS, lalu isi GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET."

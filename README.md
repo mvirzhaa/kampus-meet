@@ -81,7 +81,13 @@ nano .env                      # cek APP_NAME, CAMPUS_NAME, ALLOWED_EMAIL_DOMAIN
 cd deploy && docker compose --env-file ../.env up -d --build
 ```
 
-Buka firewall: **TCP 80, 443, 7881**, **UDP 3478, 50000–60000, 30000–40000** (relay TURN). Port 3000, 6379, 7880, 8081 cukup lokal (jangan dibuka).
+Buka firewall: **TCP 80, 443, 7881**, **UDP 443, 7882, 3478, 30000–31000** (relay TURN).
+Port 3000, 6379, 7880, 8081 cukup lokal (jangan dibuka).
+
+> **Server di belakang NAT** (IP lokal 10.x/172.x/192.168.x): semua port di atas harus
+> *di-forward* dari IP publik ke server, dan `rtc.node_ip` di `deploy/livekit.yaml` harus berisi
+> **IP masuk** (IP pada record A domain). Pada banyak jaringan kampus IP keluar berbeda dengan
+> IP masuk, sehingga deteksi otomatis LiveKit salah — lihat bagian troubleshooting di bawah.
 
 **Google Drive untuk rekaman** (sekali saja):
 1. [console.cloud.google.com](https://console.cloud.google.com) → buat proyek → aktifkan **Google Drive API**.
@@ -108,12 +114,15 @@ Skrip memeriksa berurutan penyebab tersering:
 1. **Record DNS `MEDIA_DOMAIN` belum dibuat.** Subdomain media (mis. `media.meet.uika-bogor.ac.id`)
    harus punya record A ke IP server, terpisah dari domain aplikasi. Tanpa itu Caddy gagal menerbitkan
    sertifikat dan `wss://` dari browser langsung putus.
-2. **Firewall menutup port media.** Buka **TCP 7881** dan **UDP 3478, 30000–40000, 50000–60000**
-   di `ufw`/`firewalld` *dan* di security group cloud / firewall kampus. Hanya 80/443 yang terbuka =
-   signaling jalan tetapi ICE tidak pernah tersambung — persis gejala di atas.
-3. **Server di belakang NAT dan IP publik salah terdeteksi.** Periksa baris `nodeIP` pada
-   `docker compose logs livekit`. Bila berisi IP privat (10.x/172.x/192.168.x), isi
-   `rtc.node_ip: <IP publik>` di `deploy/livekit.yaml`, lalu `docker compose restart livekit`.
+2. **IP yang diumumkan LiveKit salah (paling sering di jaringan kampus).** LiveKit menaruh
+   `rtc.node_ip` di kandidat ICE yang dikirim ke browser. Pada server di belakang NAT, IP **keluar**
+   (yang dideteksi STUN) sering berbeda dari IP **masuk** (record A domain) — browser lalu mencoba
+   alamat yang tidak bisa dihubungi dan gagal setelah beberapa puluh detik. Bandingkan baris `nodeIP`
+   pada `docker compose logs livekit` dengan `dig +short $APP_DOMAIN`; bila berbeda, set
+   `use_external_ip: false` + `node_ip: <IP masuk>` lalu `docker compose restart livekit`.
+3. **Firewall / NAT menutup port media.** Forward **TCP 7881** dan **UDP 7882, 3478, 30000–31000**
+   dari IP publik ke server, dan buka juga di `ufw`/`firewalld` bila aktif. Hanya 80/443 yang terbuka =
+   signaling jalan tetapi ICE tidak pernah tersambung — gejalanya sama.
 4. **`LIVEKIT_PUBLIC_URL` tidak sama dengan `wss://$MEDIA_DOMAIN`**, atau `deploy/livekit.yaml`
    masih berisi placeholder `__LIVEKIT_API_SECRET__` (`scripts/gen-env.sh` belum dijalankan).
 
