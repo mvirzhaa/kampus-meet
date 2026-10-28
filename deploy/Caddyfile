@@ -1,11 +1,25 @@
 # HTTPS otomatis (Let's Encrypt). Pastikan DNS kedua domain mengarah ke server ini.
 {$APP_DOMAIN} {
-	reverse_proxy 127.0.0.1:3000
 	request_body {
 		max_size 32MB
+	}
+
+	# Rute tambahan pada domain ini (mis. /bisindo) ditaruh di deploy/conf.d/app-*.caddy.
+	# Folder itu di-.gitignore, jadi `git pull` tidak pernah menimpanya.
+	import /etc/caddy/conf.d/app-*.caddy
+
+	# Penangkap terakhir: aplikasi UIKA Meet.
+	# handle tanpa matcher selalu diurutkan paling akhir oleh Caddy, apa pun urutan penulisannya.
+	handle {
+		reverse_proxy 127.0.0.1:3000
 	}
 }
 
 {$MEDIA_DOMAIN} {
 	reverse_proxy 127.0.0.1:7880
 }
+
+# Situs tambahan yang punya domain sendiri ditaruh sebagai deploy/conf.d/site-*.caddy.
+# Glob sengaja dipisah dari app-*.caddy: berkas app-* berisi direktif yang hanya sah
+# di dalam blok site, sehingga akan error bila ikut terbaca di tingkat atas.
+import /etc/caddy/conf.d/site-*.caddy

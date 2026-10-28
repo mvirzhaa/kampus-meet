@@ -9,3 +9,4 @@ recordings/
 !.env.example
 *.bak
 deploy/*.generated.yaml
+deploy/conf.d/*.caddy

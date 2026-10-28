@@ -76,6 +76,7 @@ services:
       MEDIA_DOMAIN: ${MEDIA_DOMAIN}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./conf.d:/etc/caddy/conf.d:ro      # situs tambahan, tidak dilacak git
       - caddy_data:/data
       - caddy_config:/config
 
