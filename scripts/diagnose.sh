@@ -89,11 +89,17 @@ if [ -n "$MEDIA_DOMAIN" ]; then
     000) bad "Caddy tidak merespons untuk $MEDIA_DOMAIN (cek: docker compose logs caddy)" ;;
     *)   bad "https://$MEDIA_DOMAIN/ -> HTTP $CODE (seharusnya 200)" ;;
   esac
+  # --http1.1 WAJIB: HTTP/2 melarang header Connection/Upgrade sehingga curl membuangnya,
+  # LiveKit lalu menerima GET biasa dan menjawab 404 — itu salah uji, bukan tanda kerusakan.
   # shellcheck disable=SC2086
-  UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 $RES \
+  UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 --http1.1 $RES \
        -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
        -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "https://$MEDIA_DOMAIN/rtc" 2>/dev/null)
-  [ "$UP" = "401" ] && ok "WebSocket /rtc diteruskan Caddy (401 tanpa token = normal)" || warn "/rtc -> HTTP $UP (harapan: 401)"
+  case "$UP" in
+    401) ok "WebSocket /rtc diteruskan Caddy (401 tanpa token = normal)" ;;
+    404) warn "/rtc -> 404: header upgrade tidak sampai ke LiveKit (periksa konfigurasi Caddy)" ;;
+    *)   warn "/rtc -> HTTP $UP (harapan: 401)" ;;
+  esac
   echo "  (jalur dari LUAR tidak bisa diuji dari dalam server — lihat bagian 7)"
 fi
 
