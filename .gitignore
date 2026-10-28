@@ -4,3 +4,8 @@ data/
 *.log
 bin/
 recordings/
+# Salinan/berkas turunan yang berisi rahasia — jangan pernah masuk git
+.env.*
+!.env.example
+*.bak
+deploy/*.generated.yaml
