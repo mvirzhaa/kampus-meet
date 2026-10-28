@@ -24,13 +24,17 @@ case "$LK_PUBLIC" in
   "wss://$MEDIA_DOMAIN") ok "LIVEKIT_PUBLIC_URL cocok dengan MEDIA_DOMAIN" ;;
   *) bad "LIVEKIT_PUBLIC_URL ($LK_PUBLIC) TIDAK sama dengan wss://$MEDIA_DOMAIN" ;;
 esac
-if grep -q '__LIVEKIT_API_SECRET__\|__REDIS_PASSWORD__\|__NODE_IP__' deploy/livekit.yaml deploy/egress.yaml 2>/dev/null; then
-  bad "deploy/livekit.yaml atau egress.yaml masih berisi placeholder __..__ (gen-env.sh belum dijalankan)"
-else ok "livekit.yaml/egress.yaml sudah terisi rahasia"; fi
-YKEY=$(grep -E '^  [A-Za-z0-9_-]+:' deploy/livekit.yaml | head -1 | sed 's/^  //; s/:.*//')
-YSEC=$(grep -E '^  [A-Za-z0-9_-]+:' deploy/livekit.yaml | head -1 | sed 's/.*: *//')
-[ "$YKEY" = "$LK_KEY" ] && ok "API key cocok ($YKEY)" || bad "keys di livekit.yaml ($YKEY) != LIVEKIT_API_KEY ($LK_KEY)"
-[ "$YSEC" = "$LK_SECRET" ] && ok "API secret cocok" || bad "secret di livekit.yaml != LIVEKIT_API_SECRET di .env"
+LKCFG=deploy/livekit.generated.yaml
+EGCFG=deploy/egress.generated.yaml
+if [ ! -f "$LKCFG" ] || [ ! -f "$EGCFG" ]; then
+  bad "deploy/*.generated.yaml belum dibuat -> jalankan: sh scripts/render-config.sh"
+elif grep -q '__[A-Z_]\{3,\}__' "$LKCFG" "$EGCFG" 2>/dev/null; then
+  bad "masih ada placeholder yang belum terisi -> jalankan ulang: sh scripts/render-config.sh"
+else ok "konfigurasi container sudah di-generate & terisi rahasia"; fi
+YKEY=$(grep -E '^  [A-Za-z0-9_-]+:' "$LKCFG" 2>/dev/null | head -1 | sed 's/^  //; s/:.*//')
+YSEC=$(grep -E '^  [A-Za-z0-9_-]+:' "$LKCFG" 2>/dev/null | head -1 | sed 's/.*: *//')
+[ "$YKEY" = "$LK_KEY" ] && ok "API key cocok ($YKEY)" || bad "keys di $LKCFG ($YKEY) != LIVEKIT_API_KEY ($LK_KEY)"
+[ "$YSEC" = "$LK_SECRET" ] && ok "API secret cocok" || bad "secret di $LKCFG != LIVEKIT_API_SECRET di .env"
 
 hdr "2. DNS kedua domain"
 PUB=$(curl -4 -s --max-time 8 https://api.ipify.org || echo '?')
@@ -66,12 +70,12 @@ if [ -n "$NODEIP" ]; then
   if [ "$NODEIP" = "$INBOUND" ]; then ok "nodeIP = IP yang dihubungi browser ($NODEIP)"
   else
     bad "nodeIP=$NODEIP TAPI browser menghubungi $INBOUND -> kandidat ICE menunjuk alamat yang salah."
-    echo "       Perbaiki di deploy/livekit.yaml:  use_external_ip: false  +  node_ip: $INBOUND"
+    echo "       Perbaiki di deploy/livekit.template.yaml, lalu: sh scripts/render-config.sh $INBOUND"
     echo "       lalu: docker compose -f deploy/docker-compose.yml --env-file .env restart livekit"
   fi
 fi
 echo "  -- port UDP yang dipakai LiveKit --"
-grep -E '^\s*(udp_port|port_range_start|port_range_end):' deploy/livekit.yaml | sed 's/^/  /'
+grep -E '^\s*(udp_port|port_range_start|port_range_end):' "$LKCFG" 2>/dev/null | sed 's/^/  /'
 
 hdr "5. Jalur publik media (HTTPS/WSS lewat Caddy)"
 if [ -n "$MEDIA_DOMAIN" ]; then

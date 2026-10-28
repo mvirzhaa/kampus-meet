@@ -69,7 +69,7 @@ Perkiraan kapasitas (1 server 4 vCPU / 8 GB, uplink 1 Gbps): ±10–15 kelas par
 - Media terenkripsi di jalur (DTLS-SRTP wajib di WebRTC), seluruh situs lewat HTTPS. Webhook LiveKit diverifikasi tanda tangannya.
 - Konten pengguna selalu dirender sebagai teks (tanpa `innerHTML`), ekspor CSV terlindung dari *CSV injection*.
 
-**Webhook LiveKit wajib aktif** (`deploy/livekit.yaml` → `webhook.urls`) karena dipakai untuk penegakan blokir, sinkronisasi izin, dan kehadiran/sertifikat.
+**Webhook LiveKit wajib aktif** (`deploy/livekit.template.yaml` → `webhook.urls`) karena dipakai untuk penegakan blokir, sinkronisasi izin, dan kehadiran/sertifikat.
 
 ## Instalasi (Docker — direkomendasikan)
 
@@ -81,14 +81,39 @@ sh scripts/gen-env.sh meet.uika-bogor.ac.id media.meet.uika-bogor.ac.id
 nano .env                      # cek APP_NAME, CAMPUS_NAME, ALLOWED_EMAIL_DOMAINS
 
 # 2. Jalankan
-cd deploy && docker compose --env-file ../.env up -d --build
+docker compose -f deploy/docker-compose.yml --env-file .env up -d --build
 ```
+
+### Konfigurasi container: template vs. hasil generate
+
+Berkas yang dibaca container **berisi rahasia**, jadi tidak boleh dilacak git. Pemisahannya:
+
+| Berkas | Dilacak git | Isi |
+| --- | --- | --- |
+| `deploy/livekit.template.yaml`, `deploy/egress.template.yaml` | ya | placeholder `__LIVEKIT_API_SECRET__`, `__NODE_IP__`, … |
+| `deploy/livekit.generated.yaml`, `deploy/egress.generated.yaml` | tidak (`.gitignore`) | rahasia asli; inilah yang di-mount ke container |
+
+`scripts/gen-env.sh` memanggil `scripts/render-config.sh` untuk membuat berkas hasil generate.
+
+> **Setelah setiap `git pull`** (atau setiap mengubah `.env`), jalankan ulang:
+>
+> ```bash
+> sh scripts/render-config.sh
+> docker compose -f deploy/docker-compose.yml --env-file .env up -d
+> ```
+>
+> Skrip ini aman diulang: mengisi rahasia + `rtc.node_ip`, menolak jalan bila ada placeholder
+> yang belum terisi, dan menyamakan kepemilikan berkas dengan uid di dalam container
+> (Egress berjalan non-root — tanpa ini ia gagal start dengan `permission denied`).
+>
+> Karena `git pull` hanya menyentuh template, konfigurasi yang sedang dipakai container
+> tidak pernah tertimpa.
 
 Buka firewall: **TCP 80, 443, 7881**, **UDP 443, 7882, 3478, 30000–31000** (relay TURN).
 Port 3000, 6379, 7880, 8081 cukup lokal (jangan dibuka).
 
 > **Server di belakang NAT** (IP lokal 10.x/172.x/192.168.x): semua port di atas harus
-> *di-forward* dari IP publik ke server, dan `rtc.node_ip` di `deploy/livekit.yaml` harus berisi
+> *di-forward* dari IP publik ke server, dan `NODE_IP` di `.env` harus berisi
 > **IP masuk** (IP pada record A domain). Pada banyak jaringan kampus IP keluar berbeda dengan
 > IP masuk, sehingga deteksi otomatis LiveKit salah — lihat bagian troubleshooting di bawah.
 
@@ -122,12 +147,12 @@ Skrip memeriksa berurutan penyebab tersering:
    (yang dideteksi STUN) sering berbeda dari IP **masuk** (record A domain) — browser lalu mencoba
    alamat yang tidak bisa dihubungi dan gagal setelah beberapa puluh detik. Bandingkan baris `nodeIP`
    pada `docker compose logs livekit` dengan `dig +short $APP_DOMAIN`; bila berbeda, set
-   `use_external_ip: false` + `node_ip: <IP masuk>` lalu `docker compose restart livekit`.
+   `NODE_IP=<IP masuk>` di `.env`, jalankan `sh scripts/render-config.sh`, lalu `docker compose restart livekit`.
 3. **Firewall / NAT menutup port media.** Forward **TCP 7881** dan **UDP 7882, 3478, 30000–31000**
    dari IP publik ke server, dan buka juga di `ufw`/`firewalld` bila aktif. Hanya 80/443 yang terbuka =
    signaling jalan tetapi ICE tidak pernah tersambung — gejalanya sama.
-4. **`LIVEKIT_PUBLIC_URL` tidak sama dengan `wss://$MEDIA_DOMAIN`**, atau `deploy/livekit.yaml`
-   masih berisi placeholder `__LIVEKIT_API_SECRET__` (`scripts/gen-env.sh` belum dijalankan).
+4. **`LIVEKIT_PUBLIC_URL` tidak sama dengan `wss://$MEDIA_DOMAIN`**, atau `deploy/*.generated.yaml`
+   belum dibuat/masih berisi placeholder (jalankan `sh scripts/render-config.sh`).
 
 ### Rekaman gagal: `Start signal not received`
 
@@ -147,25 +172,20 @@ publisherCandidates: [udp4 host <IP-PUBLIK>:7882, tcp4 host <IP-PUBLIK>:7881]
 connectionType: "unknown"   sessionDuration: "0s"
 ```
 
-Perbaikannya ada di `deploy/livekit.yaml` (sudah menjadi bawaan): `rtc.advertise_internal_ip: true`,
+Perbaikannya ada di `deploy/livekit.template.yaml` (sudah menjadi bawaan): `rtc.advertise_internal_ip: true`,
 sehingga LiveKit mengumumkan IP internal server berdampingan dengan IP publik.
 
 ### Egress crash-loop: `open /etc/egress.yaml: permission denied`
 
-`deploy/egress.yaml` dan `deploy/livekit.yaml` berisi rahasia sehingga dibuat `chmod 600`, tetapi
-container Egress membacanya sebagai **pengguna non-root**. Bila file itu dimiliki root, Egress gagal
-start berulang kali. `scripts/gen-env.sh` sudah menyamakan kepemilikan file dengan uid di dalam
-container; bila file pernah di-`chmod`/`chown` manual, perbaiki dengan:
+Konfigurasi berisi rahasia dibuat `chmod 600`, tetapi container Egress membacanya sebagai
+**pengguna non-root** (uid 1001 pada image resmi). Bila berkas itu dimiliki root, Egress gagal start
+berulang kali. `scripts/render-config.sh` sudah menyamakan kepemilikan dengan uid di dalam
+container; bila berkas pernah di-`chmod`/`chown` manual, cukup jalankan ulang:
 
 ```bash
-u=$(docker run --rm --entrypoint id livekit/egress:latest -u)
-[ "$u" != "0" ] && chown "$u" deploy/egress.yaml
+sh scripts/render-config.sh
 docker compose -f deploy/docker-compose.yml --env-file .env restart egress
 ```
-
-> **Hati-hati saat `git pull`:** kedua file itu dilacak git dalam bentuk placeholder, sehingga setiap
-> pull akan menimpa versi yang sudah terisi rahasia. Isi ulang placeholder-nya sebelum container
-> mana pun restart.
 
 Bila firewall kampus benar-benar hanya mengizinkan 443, satu-satunya jalan adalah TURN/TLS
 (lihat catatan di bawah) — menambah port lain tidak akan membantu.
@@ -186,7 +206,7 @@ Bila firewall kampus benar-benar hanya mengizinkan 443, satu-satunya jalan adala
 
 1. Pasang **Node.js ≥ 22.13** dan unduh binary **livekit-server** (GitHub `livekit/livekit`, rilis).
 2. Salin proyek ke `/opt/kampusmeet`, buat `.env` dengan `scripts/gen-env.sh`.
-3. Jalankan LiveKit: `livekit-server --config deploy/livekit.yaml` (bisa dibuat service systemd).
+3. Jalankan `sh scripts/render-config.sh`, lalu LiveKit: `livekit-server --config deploy/livekit.generated.yaml`.
 4. Jalankan aplikasi: salin `deploy/kampusmeet.service` ke `/etc/systemd/system/`, lalu `systemctl enable --now kampusmeet`.
 5. Pasang reverse proxy HTTPS (Caddy/Nginx) untuk kedua domain seperti `deploy/Caddyfile`.
 
@@ -209,7 +229,7 @@ src/pages/     skrip tiap halaman situs
 src/room/      ruang meeting: main, media (video/audio), panels (pengguna/chat/catatan/polling), presentation (PDF+whiteboard), controls, recorder, processors
 src/css/       site.css, room.css
 scripts/       build.mjs, gen-env.sh, fetch-model.sh
-deploy/        docker-compose.yml, Caddyfile, livekit.yaml, systemd
+deploy/        docker-compose.yml, Caddyfile, *.template.yaml (sumber konfigurasi container), systemd
 ```
 
 ## Catatan & batasan

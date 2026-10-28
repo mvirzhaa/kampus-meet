@@ -59,20 +59,24 @@ fs.copyFileSync(path.join(src, 'html', 'partials', 'hero-art.svg'), path.join(pu
 
 // ---------- Pra-kompresi ----------
 let count = 0;
-function walk(dir) {
+function eachFile(dir, fn) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) { walk(p); continue; }
-    if (/\.(br|gz)$/.test(p)) { fs.rmSync(p); continue; }
-    if (!/\.(js|mjs|css|html|svg|json|wasm|txt|webmanifest)$/.test(p)) continue;
-    const buf = fs.readFileSync(p);
-    if (buf.length < 1024) continue;
-    fs.writeFileSync(p + '.br', zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } }));
-    fs.writeFileSync(p + '.gz', zlib.gzipSync(buf, { level: 9 }));
-    count++;
+    if (e.isDirectory()) eachFile(p, fn); else fn(p);
   }
 }
-walk(pub);
+// Dua lintasan terpisah: readdirSync memakai snapshot, jadi menghapus dan membuat .br/.gz
+// dalam satu lintasan akan menghapus berkas yang baru saja dibuat (nama entri lama = nama baru).
+eachFile(pub, (p) => { if (/\.(br|gz)$/.test(p)) fs.rmSync(p); });
+eachFile(pub, (p) => {
+  if (/\.(br|gz)$/.test(p)) return;
+  if (!/\.(js|mjs|css|html|svg|json|wasm|txt|webmanifest)$/.test(p)) return;
+  const buf = fs.readFileSync(p);
+  if (buf.length < 1024) return;
+  fs.writeFileSync(p + '.br', zlib.brotliCompressSync(buf, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11 } }));
+  fs.writeFileSync(p + '.gz', zlib.gzipSync(buf, { level: 9 }));
+  count++;
+});
 
 const sizes = Object.entries(built).map(([n, p]) => {
   const f = path.join(pub, p); const s = fs.statSync(f).size; const b = fs.existsSync(f + '.br') ? fs.statSync(f + '.br').size : s;

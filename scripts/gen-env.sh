@@ -17,30 +17,10 @@ sed -e "s#^PUBLIC_URL=.*#PUBLIC_URL=https://$APP#" \
     -e "s#^APP_SECRET=.*#APP_SECRET=$(rand)#" \
     -e "s#^REDIS_PASSWORD=.*#REDIS_PASSWORD=$(rand)#" .env.example > .env
 printf "APP_DOMAIN=%s\nMEDIA_DOMAIN=%s\n" "$APP" "$MEDIA" >> .env
-SECRET=$(grep '^LIVEKIT_API_SECRET=' .env | cut -d= -f2)
-REDISPW=$(grep '^REDIS_PASSWORD=' .env | cut -d= -f2)
-# Kedua file berisi rahasia sehingga dibatasi 600. Tetapi container membacanya sebagai
-# pengguna di dalam image — Egress berjalan non-root — jadi kepemilikan file harus
-# disamakan dengan uid tersebut. Tanpa ini container gagal start berulang kali dengan
-# "open /etc/egress.yaml: permission denied".
-own_for_container() { # <file> <image>
-  u=$(docker run --rm --entrypoint id "$2" -u 2>/dev/null || true)
-  case "$u" in
-    0)           : ;;                       # container root: 600 milik root sudah cukup
-    *[!0-9]*|'') echo "PERINGATAN: uid container $2 tidak terdeteksi; $1 dilonggarkan ke 644 agar bisa dibaca." >&2
-                 chmod 644 "$1" ;;
-    *)           chown "$u" "$1" ;;
-  esac
-}
-set -- deploy/livekit.yaml livekit/livekit-server:latest deploy/egress.yaml livekit/egress:latest
-while [ $# -gt 0 ]; do
-  sed -i -e "s#__LIVEKIT_API_SECRET__#$SECRET#" -e "s#__REDIS_PASSWORD__#$REDISPW#" -e "s#__NODE_IP__#$NODE_IP#" "$1"
-  chmod 600 "$1"
-  own_for_container "$1" "$2"
-  shift 2
-done
-# Folder MP4 sementara, dipakai bersama oleh Egress (menulis) dan aplikasi (mengunggah lalu menghapus)
-mkdir -p recordings && chmod 777 recordings
+# Konfigurasi container dibuat dari template oleh skrip terpisah, supaya `git pull`
+# tidak pernah menimpa berkas yang sedang dipakai container.
+sed -i "s#^NODE_IP=.*#NODE_IP=$NODE_IP#" .env
+sh scripts/render-config.sh "$NODE_IP"
+
 chmod 600 .env
-echo "LiveKit akan mengumumkan IP $NODE_IP ke browser (rtc.node_ip)."
 echo "File .env dibuat. Periksa APP_NAME, CAMPUS_NAME, ALLOWED_EMAIL_DOMAINS, lalu isi GOOGLE_CLIENT_ID dan GOOGLE_CLIENT_SECRET."

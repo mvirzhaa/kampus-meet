@@ -135,13 +135,27 @@ async function uploadOne(r) {
   } finally { progress.delete(r.id); }
 }
 
-// Pemeliharaan: lanjutkan antrean, hapus file gagal yang sudah lama
+/** Egress menulis manifes <egressID>.json di folder bersama; aplikasi tidak memakainya.
+ *  Tanpa pembersihan, file-file kecil ini menumpuk tanpa batas. */
+function sweepManifests() {
+  let names;
+  try { names = fs.readdirSync(R.localDir); } catch { return; }
+  const cutoff = Date.now() - 3600_000; // beri jeda 1 jam agar tidak menyentuh rekaman yang baru selesai
+  for (const f of names) {
+    if (!/^EG_[A-Za-z0-9]+\.json$/.test(f)) continue;
+    const p = path.join(R.localDir, f);
+    try { if (fs.statSync(p).mtimeMs < cutoff) fs.rmSync(p, { force: true }); } catch { /* sudah hilang */ }
+  }
+}
+
+// Pemeliharaan: lanjutkan antrean, hapus file gagal yang sudah lama, sapu manifes Egress
 setInterval(() => {
   processQueue();
   const old = now() - R.keepFailedDays * 86400;
   for (const r of q("SELECT id, file_name FROM recordings WHERE status = 'failed' AND COALESCE(ended_at, started_at) < ?").all(old)) {
     fs.rmSync(localPath(r.file_name), { force: true });
   }
+  sweepManifests();
 }, 60 * 1000).unref();
 setTimeout(() => {
   // Setelah restart: unggahan yang terputus dilanjutkan

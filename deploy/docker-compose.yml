@@ -1,3 +1,4 @@
+# Sebelum menjalankan: sh scripts/render-config.sh   (membuat deploy/*.generated.yaml dari template)
 # Jalankan dari folder deploy/:  docker compose --env-file ../.env up -d --build
 # Semua layanan media memakai jaringan host agar UDP WebRTC optimal. Port internal (3000, 6379, 7880)
 # hanya mendengarkan di 127.0.0.1 / dibuka lewat Caddy.
@@ -15,7 +16,7 @@ services:
     network_mode: host
     depends_on: [redis]
     volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
+      - ./livekit.generated.yaml:/etc/livekit.yaml:ro   # dibuat scripts/render-config.sh
 
   egress:                                 # perekam server (headless Chrome + GStreamer) → MP4 H.264 720p
     image: livekit/egress:latest          # sematkan versi yang cocok dengan livekit-server
@@ -25,7 +26,7 @@ services:
     environment:
       EGRESS_CONFIG_FILE: /etc/egress.yaml
     volumes:
-      - ./egress.yaml:/etc/egress.yaml:ro
+      - ./egress.generated.yaml:/etc/egress.yaml:ro     # dibuat scripts/render-config.sh
       - ../recordings:/out                # MP4 sementara; dihapus aplikasi setelah terunggah ke Google Drive
     shm_size: "1gb"
     deploy: { resources: { limits: { cpus: "3", memory: 4g } } }
