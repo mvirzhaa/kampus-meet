@@ -1,7 +1,7 @@
 // Video/audio: ubin kamera, audio peserta, berbagi layar, manajemen langganan (hemat bandwidth).
 import { RoomEvent, Track, ConnectionQuality } from 'livekit-client';
-import { h, icon, initials } from '../shared/common.js';
-import { store, on, emit, isMod, isPresenter, roleOf, allParticipants, colorFor } from './store.js';
+import { h, icon, initials, toast } from '../shared/common.js';
+import { store, on, emit, isMod, isPresenter, roleOf, allParticipants, colorFor, participant, meetApi } from './store.js';
 
 const $ = (s) => document.querySelector(s);
 const tiles = new Map(); // identity -> { el, video, attached }
@@ -25,8 +25,14 @@ function hasCam(p) {
   const pub = camPub(p);
   return !!pub && !pub.isMuted && (p === store.room.localParticipant ? !!pub.track : true);
 }
+/** Peserta yang sedang disorot moderator (hanya bila masih ada di room). */
+export const spotlighted = () => (store.meta.spotlight && participant(store.meta.spotlight)) || null;
+export const setSpotlight = (identity) => meetApi('POST', '/mod/spotlight', { identity: identity || null })
+  .then(() => toast(identity ? 'Kamera peserta disorot untuk semua' : 'Sorotan dihentikan', 'success')).catch(e => toast(e.message, 'error'));
+
 function mayView(p) {
   if (p === store.room.localParticipant) return true;
+  if (store.meta.spotlight === p.identity) return true; // sorotan selalu tampil, juga saat mode hemat data
   if (store.dataSaver) return false;
   if (!store.meta.locks?.seeCams || isMod()) return true;
   return roleOf(p.identity) === 'moderator' || isPresenter(p.identity);
@@ -45,7 +51,8 @@ function makeTile(p) {
     video,
     h('div', { class: 't-av' }, h('span', { style: { background: colorFor(p.identity) }, text: initials(p.name) })),
     h('div', { class: 't-q' }),
-    h('div', { class: 't-name' }, h('i', { class: 'mic' }), h('span', { class: 'nm', text: p.name || p.identity })));
+    h('div', { class: 't-name' }, h('i', { class: 'mic' }), h('span', { class: 'nm', text: p.name || p.identity })),
+    h('button', { class: 't-spot', type: 'button', title: 'Tayangkan kamera ini besar untuk semua peserta', onclick: (e) => { e.stopPropagation(); setSpotlight(p.identity); } }, icon('sparkles', 13), 'Sorot'));
   el.addEventListener('dblclick', () => el.requestFullscreen?.().catch(() => {}));
   return { el, video, attached: null };
 }
@@ -81,11 +88,12 @@ export function schedule() { if (!raf) raf = requestAnimationFrame(() => { raf =
 function render() {
   const room = store.room; if (!room) return;
   const sharer = screenSharer();
-  const presentationShown = presVisible || !!sharer;
+  const spot = spotlighted();
+  const presentationShown = presVisible || !!sharer || !!spot;
   const cams = $('#cams'); const grid = $('#cam-grid'); const main = $('#main-area');
 
-  // Siapa yang tampil di ubin
-  let list = allParticipants().filter(p => hasCam(p) && mayView(p));
+  // Siapa yang tampil di ubin (saat sorotan: strip kamera disembunyikan agar panggung bersih & hemat bandwidth)
+  let list = spot ? [] : allParticipants().filter(p => hasCam(p) && mayView(p));
   const gridMode = !presentationShown;
   if (gridMode && !list.length) list = allParticipants(); // tanpa kamera: tampilkan avatar semua peserta
   list.sort((a, b) => (b === room.localParticipant) - (a === room.localParticipant) || (speaking.has(b.identity) - speaking.has(a.identity)) || a.name.localeCompare(b.name));
@@ -123,7 +131,7 @@ function render() {
   for (const p of allParticipants()) {
     if (p === room.localParticipant) continue;
     const pub = camPub(p);
-    if (pub) { const want = visibleIds.has(p.identity) && !pub.isMuted && mayView(p); if (pub.isSubscribed !== want) pub.setSubscribed(want); }
+    if (pub) { const want = (visibleIds.has(p.identity) || p === spot) && !pub.isMuted && mayView(p); if (pub.isSubscribed !== want) pub.setSubscribed(want); }
   }
   const frag = [];
   for (const p of visible) {
@@ -136,7 +144,51 @@ function render() {
   if (frag.some((el, i) => grid.children[i] !== el) || grid.children.length !== frag.length) grid.replaceChildren(...frag);
 
   renderScreen(sharer);
-  $('#pres-view').hidden = !!sharer || !presVisible;
+  renderSpot(spot);
+  if (spot) $('#screen-view').hidden = true;
+  $('#pres-view').hidden = !!spot || !!sharer || !presVisible;
+}
+
+// ---------- Sorotan (spotlight) ----------
+let spotEl = null; let spotTrack = null; let spotId = null;
+function renderSpot(p) {
+  const view = $('#spot-view');
+  view.hidden = !p;
+  const pub = p ? camPub(p) : null;
+  const track = p && hasCam(p) ? pub?.track || null : null;
+  if (track !== spotTrack) {
+    if (spotTrack && spotEl) spotTrack.detach(spotEl);
+    spotEl?.remove(); spotEl = null;
+    if (track) { spotEl = h('video', { autoplay: true, playsinline: true, muted: true }); track.attach(spotEl); view.prepend(spotEl); }
+    spotTrack = track;
+  }
+  if (!p) { if (document.fullscreenElement === view) document.exitFullscreen?.().catch(() => {}); return; }
+  spotEl?.classList.toggle('mirror', p === store.room.localParticipant && store.mirror !== false);
+  const me = p === store.room.localParticipant;
+  $('#spot-name').textContent = `${p.name || p.identity}${me ? ' (Anda)' : ''}`;
+  const micPub = p.getTrackPublication(Track.Source.Microphone);
+  const micOff = !micPub || micPub.isMuted;
+  $('#spot-mic').replaceChildren(icon(micOff ? 'mic-off' : 'mic', 16, micOff ? 'off' : ''));
+  const av = $('#spot-av');
+  av.hidden = !!track;
+  if (!track && av.dataset.id !== p.identity + ':' + p.name) {
+    av.dataset.id = p.identity + ':' + p.name;
+    av.replaceChildren(h('span', { class: 'av', style: { background: colorFor(p.identity) }, text: initials(p.name) }),
+      h('div', { text: me ? 'Kamera Anda mati: nyalakan kamera agar tampil di sorotan.' : 'Kamera sedang dimatikan' }));
+  }
+  view.classList.toggle('talking', speaking.has(p.identity));
+}
+function spotChanged() {
+  const id = store.meta.spotlight || null;
+  if (id === spotId) return;
+  spotId = id;
+  if (!id || document.body.classList.contains('rec-mode')) return;
+  const p = participant(id);
+  if (!p) return;
+  if (p === store.room.localParticipant) {
+    toast(hasCam(p) ? 'Moderator menyorot kamera Anda: tampil besar untuk semua peserta. Pilih kualitas kamera "Tinggi (720p)" agar lebih tajam.'
+      : 'Moderator menyorot Anda. Nyalakan kamera agar tampil besar untuk semua peserta.', 'info', 7000);
+  } else toast(`${p.name} sedang disorot. Klik tombol layar penuh untuk menonton lebih besar.`, 'info', 5000);
 }
 
 let screenEl = null; let screenTrack = null;
@@ -204,12 +256,19 @@ export function initMedia(room) {
     .on(RoomEvent.ActiveSpeakersChanged, (sp) => {
       speaking = new Set(sp.map(p => p.identity));
       for (const [id, t] of tiles) t.el.classList.toggle('talking', speaking.has(id));
+      $('#spot-view').classList.toggle('talking', !!store.meta.spotlight && speaking.has(store.meta.spotlight));
       emit('speaking', speaking);
     });
   for (const p of room.remoteParticipants.values()) for (const pub of p.trackPublications.values()) subscribeDefaults(pub);
   $('#cam-prev').addEventListener('click', () => { page--; schedule(); });
   $('#cam-next').addEventListener('click', () => { page++; schedule(); });
   $('#screen-full').addEventListener('click', () => $('#screen-view').requestFullscreen?.().catch(() => {}));
+  const sv = $('#spot-view');
+  const toggleFull = () => (document.fullscreenElement ? document.exitFullscreen() : sv.requestFullscreen?.())?.catch?.(() => {});
+  $('#spot-full').addEventListener('click', toggleFull);
+  sv.addEventListener('dblclick', toggleFull);
+  $('#spot-stop').addEventListener('click', () => setSpotlight(null));
+  on('meta', spotChanged);
   addEventListener('resize', schedule);
   on('meta', schedule); on('hands', schedule);
   schedule();

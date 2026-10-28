@@ -156,6 +156,18 @@ CREATE TABLE IF NOT EXISTS transcripts (
   ts INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_tr_room ON transcripts(room_id, session, ts);
+-- Logo sponsor event (ditampilkan di sertifikat & halaman event): kiri atas, kanan atas, kanan bawah
+CREATE TABLE IF NOT EXISTS event_sponsors (
+  id TEXT PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  position TEXT NOT NULL,                  -- tl | tr | br
+  name TEXT NOT NULL DEFAULT '',
+  mime TEXT NOT NULL,
+  size INTEGER NOT NULL,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sponsor_event ON event_sponsors(event_id, position, sort);
 -- Kategori event, dikelola admin lewat panel (sebelumnya hardcode di kode).
 -- events.category tetap menyimpan NAMA kategori supaya sertifikat lama tetap terbaca.
 CREATE TABLE IF NOT EXISTS categories (
@@ -173,6 +185,11 @@ for (const sql of [
   'ALTER TABLE event_regs ADD COLUMN last_leave INTEGER',
   // active = bisa login; disabled = diblokir admin (sesi aktifnya ikut dicabut)
   "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+  // Password event opsional (terenkripsi), penanda tangan sertifikat, dan sponsor
+  'ALTER TABLE events ADD COLUMN password_enc TEXT',
+  "ALTER TABLE events ADD COLUMN signer_name TEXT NOT NULL DEFAULT ''",
+  "ALTER TABLE events ADD COLUMN signer_title TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE events ADD COLUMN sponsors_enabled INTEGER NOT NULL DEFAULT 0',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 
 const cache = new Map();

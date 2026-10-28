@@ -77,6 +77,7 @@ export const limiters = {
   // Password room salah, dihitung per ROOM (semua IP) → menahan tebakan dari banyak IP/botnet
   roomPw: new RateLimiter({ capacity: 100, refillPerMin: 2 }),
   transcript: new RateLimiter({ capacity: 30, refillPerMin: 40 }),
+  translate: new RateLimiter({ capacity: 60, refillPerMin: 90 }),
 };
 
 // ---------- Validasi input ----------

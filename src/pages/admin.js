@@ -243,7 +243,7 @@ function eventItem(e) {
       h('div', { class: 'meta' },
         h('span', {}, icon('user', 15), `${e.owner} (${e.ownerEmail})`),
         h('span', {}, icon('calendar', 15), fmtDateTime(e.startsAt)),
-        h('span', {}, icon('users', 15), `${e.registered} terdaftar${e.quota ? ` / ${e.quota}` : ''}`),
+        h('span', {}, icon('users', 15), `${e.registered} peserta${e.quota ? ` / ${e.quota}` : ''}`),
         e.speaker ? h('span', {}, icon('mic', 15), e.speaker) : null,
         e.certificate ? h('span', {}, icon('award', 15), 'Bersertifikat') : null)),
     h('div', { class: 'acts' },
@@ -253,7 +253,7 @@ function eventItem(e) {
 
 async function removeEvent(e) {
   if (!(await confirmDialog('Hapus event?',
-    `Event "${e.title}" milik ${e.owner}, ${e.registered} pendaftar, dan room-nya akan dihapus permanen. Sertifikat yang sudah terbit tidak bisa diverifikasi lagi.`, 'Hapus'))) return;
+    `Event "${e.title}" milik ${e.owner}, ${e.registered} peserta, dan room-nya akan dihapus permanen. Sertifikat yang sudah terbit tidak bisa diverifikasi lagi.`, 'Hapus'))) return;
   try { await api('DELETE', `/api/admin/events/${e.id}`); toast('Event dihapus', 'success'); loadEvents(); loadOverview(); }
   catch (err) { toast(err.message, 'error'); }
 }

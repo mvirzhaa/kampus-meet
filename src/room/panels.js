@@ -3,7 +3,7 @@ import { Track } from 'livekit-client';
 import { h, icon, initials, toast, modal, confirmDialog, copyText } from '../shared/common.js';
 import { store, on, emit, isMod, isPresenter, canPresent, roleOf, nameOf, participant, allParticipants, colorFor, meetApi } from './store.js';
 import { send, sendLarge, leaderIdentity, str } from './bus.js';
-import { isSpeaking } from './media.js';
+import { isSpeaking, setSpotlight } from './media.js';
 
 const $ = (s) => document.querySelector(s);
 const app = () => $('#app');
@@ -96,6 +96,8 @@ function userMenu(id, e) {
     !me && (!store.meta.locks?.privateChat || mod || targetMod) ? { icon: 'message-circle', label: 'Mulai chat privat', fn: () => openPrivate(id) } : null,
     store.hands.has(id) && (me || mod) ? { icon: 'hand', label: 'Turunkan tangan', fn: () => me ? setHand(false) : send({ t: 'hand-lower', id }) } : null,
     mod && !isPresenter(id) ? { icon: 'presentation', label: me ? 'Jadikan saya presenter' : 'Jadikan presenter', fn: () => modCall('presenter', { identity: id }, 'Presenter diubah') } : null,
+    mod ? (store.meta.spotlight === id ? { icon: 'x', label: 'Hentikan sorotan', fn: () => setSpotlight(null) }
+      : { icon: 'sparkles', label: me ? 'Sorot kamera saya (tampil besar)' : 'Sorot kamera (tampil besar untuk semua)', fn: () => setSpotlight(id) }) : null,
     mod && !me && mic && !mic.isMuted ? { icon: 'mic-off', label: 'Matikan mikrofon', fn: () => modCall('mute', { identity: id }) } : null,
     mod && !me ? (targetMod ? { icon: 'user', label: 'Jadikan peserta', fn: () => modCall('role', { identity: id, role: 'viewer' }, 'Peran diubah') }
       : { icon: 'crown', label: 'Jadikan moderator', fn: () => modCall('role', { identity: id, role: 'moderator' }, 'Peran diubah') }) : null,
@@ -110,6 +112,7 @@ function usersGear(e) {
     { icon: 'mic-off', label: 'Matikan mikrofon semua', fn: () => modCall('mute', { all: true }, 'Semua mikrofon dimatikan') },
     { icon: 'mic-off', label: 'Matikan semua kecuali presenter', fn: () => modCall('mute', { all: true, exceptPresenter: true }, 'Mikrofon dimatikan') },
     { icon: 'lock', label: 'Kunci peserta (lock viewers)', fn: lockViewersModal },
+    ...(store.meta.spotlight ? [{ icon: 'x', label: 'Hentikan sorotan kamera', fn: () => setSpotlight(null) }] : []),
     { icon: 'hand', label: 'Turunkan semua tangan', fn: () => { send({ t: 'hand-lower', all: true }); store.hands.clear(); emit('hands'); } },
     { icon: 'download', label: 'Simpan daftar nama', fn: saveUserList },
   ]);

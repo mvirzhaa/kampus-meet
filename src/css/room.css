@@ -120,7 +120,27 @@
 .main-area { flex: 1; min-height: 0; position: relative; display: flex; }
 .main-area[hidden] { display: none; }
 .pres-view, .screen-view { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
-.pres-view[hidden], .screen-view[hidden] { display: none; }
+.pres-view[hidden], .screen-view[hidden], .spot-view[hidden] { display: none; }
+/* Sorotan (spotlight): satu kamera memenuhi panggung / layar penuh */
+.spot-view { flex: 1; min-width: 0; min-height: 0; position: relative; background: #000; display: grid; place-items: center; overflow: hidden; border-radius: 10px; margin: 0 12px 8px; }
+.spot-view video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.spot-view video.mirror { transform: scaleX(-1); }
+.spot-view:fullscreen { margin: 0; border-radius: 0; }
+.spot-av { position: absolute; inset: 0; display: grid; place-items: center; align-content: center; gap: 14px; color: #b8c6d9; font-size: 14px; }
+.spot-av[hidden] { display: none; }
+.spot-av span.av { width: clamp(90px, 16vmin, 160px); aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: clamp(32px, 6vmin, 60px); color: #fff; }
+.spot-label { position: absolute; left: 14px; bottom: 14px; display: flex; align-items: center; gap: 8px; max-width: calc(100% - 28px); background: rgba(0, 0, 0, .58); color: #fff; padding: 6px 12px; border-radius: 8px; font-size: clamp(13px, 1.6vw, 18px); font-weight: 600; z-index: 2; }
+.spot-label > svg { color: #ffd166; flex-shrink: 0; }
+.spot-label #spot-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.spot-mic svg { display: block; } .spot-mic .off { color: #ff7b7b; }
+.spot-actions { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; z-index: 2; }
+.spot-stop { background: rgba(0, 0, 0, .6); color: #fff; border: 1px solid rgba(255, 255, 255, .25); }
+.spot-stop:hover { background: #c53030; }
+.spot-view.talking { box-shadow: inset 0 0 0 3px #3ccf91; }
+.tile .t-spot { position: absolute; top: 6px; right: 6px; display: none; align-items: center; gap: 4px; border: 0; border-radius: 6px; padding: 3px 8px; font-size: 11.5px; font-weight: 600; background: rgba(0, 0, 0, .62); color: #fff; cursor: pointer; z-index: 2; }
+.is-mod .tile:hover .t-spot, .is-mod .tile:focus-within .t-spot { display: inline-flex; }
+.tile .t-spot:hover { background: #2f80ed; }
+.tile:has(.t-hand) .t-spot { right: 38px; }
 .screen-view { background: #000; align-items: center; justify-content: center; }
 .screen-view video { max-width: 100%; max-height: 100%; width: 100%; height: 100%; object-fit: contain; }
 .screen-label { position: absolute; top: 8px; left: 8px; background: rgba(0, 0, 0, .55); padding: 3px 10px; border-radius: 6px; font-size: 12.5px; z-index: 2; }
@@ -231,6 +251,9 @@ input[type=range] { padding: 0; accent-color: #2f80ed; }
 @media (max-width: 1100px) {
   .room { grid-template-columns: 200px 280px 1fr; }
   .room.panel-hidden { grid-template-columns: 200px 1fr; }
+  /* Harus diulang di sini: aturan .panel-hidden di atas (spesifisitas sama, posisi lebih akhir)
+     akan menang saat .nav-hidden dan .panel-hidden aktif bersamaan → panggung terjepit di kolom 200px. */
+  .room.nav-hidden { grid-template-columns: 1fr; }
   .tile { width: 170px; }
 }
 @media (max-width: 860px) {
@@ -259,7 +282,17 @@ input[type=range] { padding: 0; accent-color: #2f80ed; }
 
 .room-body .toasts { bottom: 86px; }
 .r-nav h6 .h6-label { flex: 1; }
-.pres-view:has(#wb-tools[hidden]) .pres-scroll { padding-right: 12px; }
+.pres-view:has(#wb-tools[hidden]) .pres-scroll, .pres-view:has(#wb-tools.collapsed) .pres-scroll { padding-right: 12px; }
+/* Alat gambar bisa disembunyikan agar tidak menutupi slide */
+.wb-items { display: flex; flex-direction: column; gap: 2px; }
+.wb-collapse { border-bottom: 1px solid #e2e8f0 !important; border-radius: 7px 7px 3px 3px !important; height: 26px !important; color: #7a8899 !important; }
+.wb-collapse .ic-show { display: none; }
+.wb-tools.collapsed { padding: 4px; opacity: .55; transition: opacity .15s; overflow: visible; }
+.wb-tools.collapsed:hover, .wb-tools.collapsed:focus-within { opacity: 1; }
+.wb-tools.collapsed .wb-items { display: none; }
+.wb-tools.collapsed .wb-collapse { height: 34px !important; border: 0 !important; color: #2f80ed !important; }
+.wb-tools.collapsed .wb-collapse .ic-hide { display: none; } .wb-tools.collapsed .wb-collapse .ic-show { display: grid; }
+.wb-collapse span { display: grid; place-items: center; }
 
 /* --- Transkripsi --- */
 .cap-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 999px; background: rgba(47, 128, 237, .18); color: #cfe2ff; font-size: 12.5px; border: 1px solid #2f6fd1; }
@@ -269,17 +302,24 @@ input[type=range] { padding: 0; accent-color: #2f80ed; }
 .tr-status { font-size: 12px; color: #718096; line-height: 1.4; }
 .tr-status.warn { color: #b7791f; } .tr-status.on { color: #2f855a; }
 .tr-log .msg-text.interim { color: #8a95a5; font-style: italic; }
+.tr-both { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: #4a5568; margin: 0; cursor: pointer; }
+.tr-both[hidden] { display: none; } .tr-both input { width: auto; margin: 0; }
+.msg-tr { margin-top: 3px; padding-left: 8px; border-left: 2px solid #9fc5ff; color: #2c5282; font-size: 13px; }
+.msg-tr .tr-lang-tag { background: #dbe9ff; color: #2c5282; margin-right: 5px; }
+.msg-tr.pending { color: #a0aec0; font-style: italic; }
+.tr-status button { border: 0; background: none; color: #2b6cb0; font-weight: 600; text-decoration: underline; cursor: pointer; padding: 0; font: inherit; }
 .tr-lang-tag { font-size: 10px; font-weight: 700; color: #6c7787; background: #eef2f7; border-radius: 4px; padding: 0 4px; }
 .captions { position: absolute; left: 50%; bottom: 52px; transform: translateX(-50%); width: min(860px, calc(100% - 32px)); display: grid; gap: 4px; z-index: 7; pointer-events: none; }
 .cap-line { background: rgba(0, 0, 0, .78); color: #fff; padding: 6px 12px; border-radius: 8px; font-size: 17px; line-height: 1.4; text-align: center; }
 .cap-line b { color: #9fc5ff; font-weight: 600; margin-right: 6px; }
 .cap-line.interim span { opacity: .8; }
+.cap-line small { display: block; font-size: .78em; opacity: .72; margin-top: 2px; }
 @media (max-width: 860px) { .cap-badge span { display: none; } .cap-line { font-size: 15px; } }
 
 /* --- Mode perekam (dibuka oleh LiveKit Egress, 1280×720) --- */
 .rec-mode .room, .rec-mode .room.panel-hidden, .rec-mode .room.nav-hidden { grid-template-columns: 1fr; }
 .rec-mode .r-nav, .rec-mode .r-panel, .rec-mode .controls, .rec-mode .rec-btn, .rec-mode #cap-badge, .rec-mode .rec-banner,
-.rec-mode #toggle-nav, .rec-mode .r-top-right, .rec-mode .wb-tools, .rec-mode .pres-bar, .rec-mode .cam-page, .rec-mode .screen-full, .rec-mode .toasts { display: none !important; }
+.rec-mode #toggle-nav, .rec-mode .r-top-right, .rec-mode .wb-tools, .rec-mode .pres-bar, .rec-mode .cam-page, .rec-mode .screen-full, .rec-mode .spot-actions, .rec-mode .t-spot, .rec-mode .toasts { display: none !important; }
 .rec-mode .r-top { height: 40px; justify-content: center; }
 .rec-mode .r-title { margin: 0; }
 .rec-mode .pres-scroll { padding: 6px 12px 12px; }

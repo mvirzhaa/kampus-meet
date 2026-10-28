@@ -34,11 +34,12 @@ export function verifyWebhook(rawBody, authHeader) {
 }
 
 /** Izin publish sesuai peran & kunci (lock viewers). */
-export function publishSources({ role, isPresenter, locks }) {
+export function publishSources({ role, isPresenter, locks, isSpotlight }) {
   if (role === 'moderator') return ['camera', 'microphone', 'screen_share', 'screen_share_audio'];
   const s = [];
-  if (!locks?.webcam) s.push('camera');
-  if (!locks?.mic) s.push('microphone');
+  // Peserta yang sedang disorot moderator tetap boleh kamera & mikrofon walau peserta dikunci.
+  if (!locks?.webcam || isSpotlight) s.push('camera');
+  if (!locks?.mic || isSpotlight) s.push('microphone');
   if (isPresenter) s.push('screen_share', 'screen_share_audio', ...(s.includes('camera') ? [] : ['camera']), ...(s.includes('microphone') ? [] : ['microphone']));
   return s;
 }

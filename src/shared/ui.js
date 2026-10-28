@@ -4,7 +4,7 @@ export function eventCard(e) {
   const t = Date.now() / 1000;
   const status = t > e.endsAt ? h('span', { class: 'pill gray', text: 'Selesai' })
     : t >= e.startsAt ? h('span', { class: 'pill live', text: 'Berlangsung' })
-      : h('span', { class: 'pill green', text: 'Pendaftaran dibuka' });
+      : h('span', { class: 'pill green', text: 'Akan datang' });
   return h('a', { class: 'ev-card', href: `/event/${e.slug}` },
     h('div', { class: 'ev-cover' }, h('span', { class: 'cat', text: e.category }),
       h('span', { class: 'date' }, icon('calendar', 16), `${fmtDate(e.startsAt)}`)),
@@ -13,7 +13,8 @@ export function eventCard(e) {
       h('h3', { text: e.title }),
       e.speaker ? h('div', { class: 'ev-meta' }, icon('user', 15), e.speaker) : null,
       h('div', { class: 'ev-meta' }, icon('clock', 15), `${fmtTime(e.startsAt)} – ${fmtTime(e.endsAt)}`),
-      h('div', { class: 'ev-meta' }, icon('users', 15), `${e.registered} terdaftar${e.quota ? ` / ${e.quota}` : ''}`),
+      h('div', { class: 'ev-meta' }, icon('users', 15), `${e.registered} peserta${e.quota ? ` / ${e.quota}` : ''}`),
+      e.hasPassword ? h('div', { class: 'ev-meta' }, icon('lock', 15), 'Berpassword') : null,
       e.certificate ? h('div', { class: 'ev-meta' }, icon('award', 15), 'Bersertifikat') : null));
 }
 

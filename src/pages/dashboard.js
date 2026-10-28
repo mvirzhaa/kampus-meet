@@ -1,7 +1,7 @@
 import { initSite, $, $$, h, icon, api, toast, modal, confirmDialog, copyText, fmtDateTime, fmtDate, fmtTime, formData,
   toLocalInput, fromLocalInput, requireLogin, roomLinksModal, invitationText, startInstantMeeting, loadMe } from '../shared/common.js';
 import { roomFormModal, emptyState } from '../shared/ui.js';
-import { toXlsx, toPdf, saveBlob } from '../shared/export.js';
+import { toXlsx, attendancePdf, saveBlob } from '../shared/export.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -56,11 +56,6 @@ function roomItem(room) {
       } }, icon('trash', 16))));
 }
 
-function csvDownload(name, rows) {
-  const esc = (v) => { let s = String(v ?? ''); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; }; // cegah CSV injection
-  const blob = new Blob(['﻿' + rows.map(r => r.map(esc).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
-  const a = h('a', { href: URL.createObjectURL(blob), download: name }); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-}
 const dur = (a, b) => b ? `${Math.max(1, Math.round((b - a) / 60))} mnt` : 'masih di room';
 
 // ---------- Presensi otomatis ----------
@@ -100,7 +95,19 @@ async function attendance(room, pick) {
     } },
     { label: 'Unduh PDF', cls: 'btn-primary', onClick: async (e) => {
       e.target.disabled = true;
-      try { saveBlob(await toPdf({ title: titleLines[0], subtitleLines: titleLines.slice(1), headers, rows: rows.map(line), footer: room.id }), base + '.pdf'); }
+      try {
+        const first = Math.min(...rows.map(r => r.first_in)), last = Math.max(...rows.map(r => r.online ? Date.now() / 1000 : r.last_out));
+        const ok = rows.filter(r => r.duration_sec >= minSec).length;
+        saveBlob(await attendancePdf({
+          orientation: 'landscape', app: me.app.name, campus: me.app.campus, title: 'DAFTAR HADIR MEETING', subtitle: room.name,
+          info: [['Nama meeting', room.name], ['ID room', room.id], ['Hari, tanggal', day], ['Waktu', `${clock(first).slice(0, 5)} - ${clock(last).slice(0, 5)} WIB`], ['Penyelenggara', me.user.name]],
+          headers, rows: rows.map(line), statusCol: 9,
+          columnStyles: { 2: { cellWidth: 66 }, 3: { cellWidth: 62 }, 4: { halign: 'center', cellWidth: 62 }, 5: { halign: 'center', cellWidth: 66 }, 6: { halign: 'center', cellWidth: 58 }, 7: { halign: 'center', cellWidth: 62 }, 8: { halign: 'center', cellWidth: 46 }, 9: { halign: 'center', cellWidth: 56 } },
+          summary: `Jumlah hadir: ${rows.length} orang  |  Hadir minimal ${d.certMinMinutes} menit: ${ok} orang`,
+          note: 'Durasi = keluar terakhir - masuk pertama (peserta yang keluar-masuk dihitung sekali). Waktu aktif = total waktu benar-benar berada di room.',
+          sign: { date: new Intl.DateTimeFormat('id-ID', { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()), title: 'Penyelenggara,', name: me.user.name },
+        }), base + '.pdf');
+      }
       catch (err) { toast('Gagal membuat PDF: ' + err.message, 'error'); }
       e.target.disabled = false; return false;
     } }] });
@@ -202,7 +209,7 @@ async function loadEvents() {
   try {
     const { organized, registered } = await api('GET', '/api/my/events');
     $('#ev-org').replaceChildren(...(organized.length ? organized.map(e => eventItem(e, true)) : [emptyState('Anda belum menyelenggarakan event.')]));
-    $('#ev-reg').replaceChildren(...(registered.length ? registered.map(e => eventItem(e, false)) : [emptyState('Anda belum mendaftar event apa pun.')]));
+    $('#ev-reg').replaceChildren(...(registered.length ? registered.map(e => eventItem(e, false)) : [emptyState('Anda belum mengikuti event apa pun.')]));
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -212,15 +219,17 @@ function eventItem(e, own) {
   return h('div', { class: 'room-item' },
     h('div', {}, h('h3', {}, e.title, st, !e.published ? h('span', { class: 'pill gray', text: 'Draf' }) : null),
       h('div', { class: 'meta' }, h('span', {}, icon('calendar', 15), `${fmtDate(e.startsAt)}, ${fmtTime(e.startsAt)}–${fmtTime(e.endsAt)}`),
-        h('span', {}, icon('users', 15), `${e.registered} terdaftar`),
+        h('span', {}, icon('users', 15), `${e.registered} peserta`),
+        own ? h('span', {}, icon(e.hasPassword ? 'lock' : 'unlock', 15), e.hasPassword ? 'Password: ' : 'Tanpa password', e.hasPassword ? h('b', { text: e.password }) : null) : null,
         !own && e.certCode ? h('span', {}, icon('award', 15), 'Sertifikat tersedia') : null,
         !own && e.attendedMin != null ? h('span', {}, icon('clock', 15), `Hadir ${e.attendedMin} mnt`) : null)),
     h('div', { class: 'acts' },
       h('a', { class: 'btn btn-primary btn-sm', href: `/event/${e.slug}` }, 'Buka'),
       own ? h('button', { class: 'btn btn-ghost btn-sm', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
+      own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Bagikan link & password', onclick: () => eventInvite(e) }, icon('link', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Peserta', onclick: () => participants(e) }, icon('users', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus', onclick: async () => {
-        if (!(await confirmDialog('Hapus event?', 'Event, pendaftar, dan room-nya akan dihapus permanen. Sertifikat yang sudah terbit tidak bisa diverifikasi lagi.', 'Hapus'))) return;
+        if (!(await confirmDialog('Hapus event?', 'Event, data peserta, dan room-nya akan dihapus permanen. Sertifikat yang sudah terbit tidak bisa diverifikasi lagi.', 'Hapus'))) return;
         try { await api('DELETE', `/api/events/${e.id}`); toast('Event dihapus', 'success'); loadEvents(); } catch (err) { toast(err.message, 'error'); }
       } }, icon('trash', 16)) : null,
       !own && e.certCode ? h('a', { class: 'btn btn-violet btn-sm', href: `/sertifikat/${e.certCode}` }, icon('award', 16), 'Sertifikat') : null));
@@ -238,10 +247,52 @@ async function categorySelect(selected) {
   return h('select', { name: 'category' }, list.map(c => h('option', { value: c, selected: selected === c }, c)));
 }
 
+const PW_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // tanpa 0/O dan 1/I agar tidak tertukar
+const randomEventPw = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => PW_CHARS[b % PW_CHARS.length]).join('');
+const SPONSOR_POS = { tl: 'Kiri atas', tr: 'Kanan atas', br: 'Kanan bawah — "Didukung oleh"' };
+
 async function eventForm(ev) {
   const now = Math.floor(Date.now() / 1000);
   const catField = await categorySelect(ev?.category);
   const start = ev?.startsAt || (Math.ceil(now / 3600) + 24) * 3600;
+
+  // ----- Password event (opsional, 6 karakter acak) -----
+  const pwOn = h('input', { type: 'checkbox', checked: !!ev?.hasPassword });
+  const pwInput = h('input', { name: 'password', value: ev?.password || randomEventPw(), maxlength: 6, minlength: 6, pattern: '[A-Za-z0-9]{6}', autocomplete: 'off',
+    style: { fontFamily: 'ui-monospace, Consolas, monospace', letterSpacing: '.25em', textTransform: 'uppercase', fontWeight: 700 } });
+  const pwRow = h('div', { style: { display: 'flex', gap: '8px' } }, pwInput,
+    h('button', { type: 'button', class: 'btn btn-ghost btn-sm', title: 'Buat password acak baru', onclick: () => { pwInput.value = randomEventPw(); } }, icon('refresh', 16), 'Acak'));
+  const syncPw = () => { pwRow.hidden = !pwOn.checked; pwInput.required = pwOn.checked; };
+  pwOn.addEventListener('change', syncPw); syncPw();
+
+  // ----- Sponsor (opsional, beberapa logo per posisi) -----
+  const spOn = h('input', { type: 'checkbox', checked: !!ev?.sponsorsEnabled });
+  const existing = (ev?.sponsors || []).map(x => ({ ...x }));
+  const removed = new Set();
+  const pending = { tl: [], tr: [], br: [] };
+  const thumbs = {};
+  const drawThumbs = (pos) => thumbs[pos].replaceChildren(
+    ...existing.filter(x => x.position === pos && !removed.has(x.id)).map(x => h('span', { class: 'sp-thumb' }, h('img', { src: x.url, alt: x.name || 'logo' }),
+      h('button', { type: 'button', title: 'Hapus logo', onclick: () => { removed.add(x.id); drawThumbs(pos); } }, icon('x', 14)))),
+    ...pending[pos].map((file, i) => h('span', { class: 'sp-thumb new' }, h('img', { src: URL.createObjectURL(file), alt: file.name }),
+      h('button', { type: 'button', title: 'Batalkan', onclick: () => { pending[pos].splice(i, 1); drawThumbs(pos); } }, icon('x', 14)))));
+  const spRows = h('div', { class: 'sp-rows' }, Object.entries(SPONSOR_POS).map(([pos, label]) => {
+    thumbs[pos] = h('div', { class: 'sp-thumbs' });
+    const input = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', multiple: true, hidden: true, onchange: () => {
+      for (const file of input.files) {
+        if (!/^image\/(png|jpeg|webp)$/.test(file.type)) { toast(`${file.name}: hanya PNG, JPG, atau WebP`, 'error'); continue; }
+        if (file.size > 2 * 1024 * 1024) { toast(`${file.name}: maksimal 2 MB`, 'error'); continue; }
+        pending[pos].push(file);
+      }
+      input.value = ''; drawThumbs(pos);
+    } });
+    drawThumbs(pos);
+    return h('div', { class: 'sp-row' }, h('div', { class: 'sp-label' }, h('b', { text: label })), thumbs[pos],
+      h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => input.click() }, icon('upload', 15), 'Tambah logo'), input);
+  }));
+  const syncSp = () => { spRows.hidden = !spOn.checked; };
+  spOn.addEventListener('change', syncSp); syncSp();
+
   const f = h('form', {},
     h('div', { class: 'field' }, h('label', { text: 'Judul event' }), h('input', { name: 'title', required: true, minlength: 4, maxlength: 140, value: ev?.title || '' })),
     h('div', { class: 'grid-2' },
@@ -253,17 +304,52 @@ async function eventForm(ev) {
     h('div', { class: 'grid-2' },
       h('div', { class: 'field' }, h('label', { text: 'Kuota peserta (0 = tanpa batas)' }), h('input', { name: 'quota', type: 'number', min: 0, value: ev?.quota ?? 0 })),
       h('div', { class: 'field' }, h('label', { text: 'Minimal durasi untuk sertifikat (menit, min. 15)' }), h('input', { name: 'minAttendMin', type: 'number', min: 15, value: ev?.minAttendMin ?? 15 }))),
+    h('div', { class: 'field' }, h('label', { class: 'check' }, pwOn, 'Gunakan password event'), pwRow,
+      h('small', { text: 'Peserta yang sudah login dan membuka link event langsung bisa bergabung tanpa mendaftar. Bila password diaktifkan, password ditanyakan sekali saat pertama kali bergabung.' })),
+    h('div', { class: 'grid-2' },
+      h('div', { class: 'field' }, h('label', { text: 'Nama penanda tangan sertifikat' }), h('input', { name: 'signerName', maxlength: 100, value: ev?.signerName || '', placeholder: 'mis. Dr. H. Ahmad Fauzi, M.Kom.' })),
+      h('div', { class: 'field' }, h('label', { text: 'Jabatan penanda tangan' }), h('input', { name: 'signerTitle', maxlength: 120, value: ev?.signerTitle || '', placeholder: 'mis. Dekan Fakultas Teknik dan Sains' }))),
+    h('small', { class: 'ev-meta', style: { display: 'block', marginTop: '-10px', marginBottom: '14px' }, text: 'Bila dikosongkan, sertifikat menampilkan "Panitia Penyelenggara" dan nama kampus.' }),
     h('div', { class: 'field' }, h('label', { text: 'Deskripsi' }), h('textarea', { name: 'description', rows: 4, maxlength: 4000 }, ev?.description || '')),
+    h('div', { class: 'field' }, h('label', { class: 'check' }, spOn, 'Tampilkan logo sponsor di sertifikat'), spRows,
+      h('small', { text: 'PNG, JPG, atau WebP, maks. 2 MB per logo, hingga 8 logo per posisi. Disarankan latar transparan.' })),
     h('div', { class: 'field' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'certificate', checked: ev ? ev.certificate : true }), 'Terbitkan sertifikat otomatis')),
     h('div', { class: 'field' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'published', checked: ev ? ev.published : true }), 'Publikasikan (tampil di halaman Event)')));
+
   const m = modal({ title: ev ? 'Ubah Event' : 'Buat Event', body: f, wide: true, actions: [{ label: 'Batal' }, { label: ev ? 'Simpan' : 'Buat Event', cls: 'btn-primary', keepOpen: true, onClick: async (e) => {
     if (!f.reportValidity()) return false;
     const d = formData(f); d.startsAt = fromLocalInput(d.startsAt); d.endsAt = fromLocalInput(d.endsAt);
+    d.password = pwOn.checked ? pwInput.value.trim().toUpperCase() : '';
+    d.sponsorsEnabled = spOn.checked;
     e.target.disabled = true;
-    try { ev ? await api('PATCH', `/api/events/${ev.id}`, d) : await api('POST', '/api/events', d); m.close(); toast('Event disimpan', 'success'); loadEvents(); }
-    catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
+    try {
+      const { event: saved } = ev ? await api('PATCH', `/api/events/${ev.id}`, d) : await api('POST', '/api/events', d);
+      // Sponsor: hapus yang ditandai, lalu unggah logo baru satu per satu
+      for (const id of removed) await api('DELETE', `/api/events/${saved.id}/sponsors/${id}`);
+      let failed = 0;
+      for (const [pos, files] of Object.entries(pending)) for (const file of files) {
+        try { await api('POST', `/api/events/${saved.id}/sponsors`, file, { 'Content-Type': file.type, 'X-Position': pos, 'X-Filename': encodeURIComponent(file.name) }); }
+        catch (err) { failed++; toast(`${file.name}: ${err.message}`, 'error', 6000); }
+      }
+      m.close(); toast(failed ? 'Event disimpan, sebagian logo gagal diunggah' : 'Event disimpan', failed ? 'error' : 'success'); loadEvents();
+      if (!ev) eventInvite(saved);
+    } catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
     return false;
   } }] });
+}
+
+/** Link & password untuk dibagikan ke peserta. */
+function eventInvite(e) {
+  const link = `${location.origin}/event/${e.slug}`;
+  const text = `Undangan: ${e.title}\n${fmtDate(e.startsAt)}, ${fmtTime(e.startsAt)}–${fmtTime(e.endsAt)}\n\nGabung lewat: ${link}${e.password ? `\nPassword event: ${e.password}` : ''}\n\nSilakan login dengan akun kampus. Room dibuka 30 menit sebelum acara dimulai.`;
+  const row = (label, val) => h('div', { class: 'link-row' }, h('label', { text: label }),
+    h('div', { class: 'link-box' }, h('code', { text: val }), h('button', { class: 'icon-btn', type: 'button', title: 'Salin', onclick: () => copyText(val) }, icon('copy', 18))));
+  modal({ title: 'Bagikan event', body: h('div', { class: 'links' },
+    row('Link event untuk peserta', link),
+    e.password ? row('Password event', e.password) : h('p', { class: 'ev-meta', text: 'Event ini tanpa password: siapa pun yang login dan memiliki link dapat bergabung.' }),
+    h('div', { class: 'note-ok' }, icon('info', 18), h('div', {}, h('strong', { text: 'Tanpa pendaftaran' }),
+      h('p', { text: 'Peserta cukup login lalu membuka link. Kehadiran dan sertifikat tercatat otomatis saat mereka bergabung.' })))),
+  actions: [{ label: 'Salin undangan', onClick: () => { copyText(text, 'Undangan tersalin'); return false; } }, { label: 'Tutup', cls: 'btn-primary' }] });
 }
 
 async function participants(e) {
@@ -272,10 +358,41 @@ async function participants(e) {
     const body = rows.length ? h('div', { class: 'table-wrap' }, h('table', { class: 'tbl' },
       h('thead', {}, h('tr', {}, ['Nama', 'Email', 'Masuk pertama', 'Keluar terakhir', 'Durasi', 'Sertifikat'].map(t => h('th', { text: t })))),
       h('tbody', {}, rows.map(r => h('tr', {}, h('td', { text: r.name }), h('td', { text: r.email }), h('td', { text: r.first_join ? clock(r.first_join) : '—' }), h('td', { text: r.last_leave ? clock(r.last_leave) : '—' }), h('td', { text: `${Math.floor(r.attended_sec / 60)} mnt` }),
-        h('td', {}, r.cert_code ? h('a', { href: `/sertifikat/${r.cert_code}`, target: '_blank', rel: 'noopener', text: r.cert_code }) : '—')))))) : emptyState('Belum ada pendaftar.', 'users');
-    modal({ title: `Peserta — ${e.title}`, wide: true, body, actions: [
-      { label: 'Unduh CSV', onClick: () => { csvDownload(`peserta-${e.slug}.csv`, [['Nama', 'Email', 'Terdaftar', 'Hadir (menit)', 'Kode Sertifikat'],
-        ...rows.map(r => [r.name, r.email, new Date(r.registered_at * 1000).toLocaleString('id-ID'), Math.floor(r.attended_sec / 60), r.cert_code || ''])]); return false; } },
+        h('td', {}, r.cert_code ? h('a', { href: `/sertifikat/${r.cert_code}`, target: '_blank', rel: 'noopener', text: r.cert_code }) : '—')))))) : emptyState('Belum ada peserta yang bergabung.', 'users');
+    const minMin = e.minAttendMin || 15;
+    const ket = (r) => !e.certificate ? 'Hadir' : r.cert_code ? `Memenuhi\n${r.cert_code}` : (r.attended_sec >= minMin * 60 ? 'Memenuhi' : 'Belum memenuhi');
+    const hm = (sec) => sec ? clock(sec).slice(0, 5) : '-';
+    const ok = rows.filter(r => r.cert_code || r.attended_sec >= minMin * 60).length;
+    const avg = rows.length ? Math.round(rows.reduce((a, r) => a + r.attended_sec, 0) / rows.length) : 0;
+    const base = `daftar-hadir-${slug(e.title)}-${new Date(e.startsAt * 1000).toISOString().slice(0, 10)}`;
+    const meta = [['Nama kegiatan', e.title], ['Kategori', e.category], ...(e.speaker ? [['Narasumber', e.speaker]] : []),
+      ['Hari, tanggal', dayLong(e.startsAt)], ['Waktu', `${clock(e.startsAt).slice(0, 5)} - ${clock(e.endsAt).slice(0, 5)} WIB`],
+      ['Penyelenggara', e.organizer || me.user.name], ['Syarat sertifikat', e.certificate ? `Hadir minimal ${minMin} menit` : 'Tanpa sertifikat']];
+    modal({ title: `Peserta — ${e.title}`, wide: true, cls: 'modal-xl', body, actions: [
+      { label: 'Unduh Excel', onClick: () => {
+        saveBlob(toXlsx({ sheetName: 'Daftar Hadir', titleLines: [`Daftar Hadir — ${e.title}`, ...meta.slice(1).map(([k, v]) => `${k}: ${v}`)],
+          headers: ['No', 'Nama', 'Email', 'Masuk pertama', 'Keluar terakhir', 'Durasi (menit)', 'Keterangan', 'Kode sertifikat'],
+          rows: rows.map((r, i) => [i + 1, r.name, r.email, hm(r.first_join), hm(r.last_leave), Math.floor(r.attended_sec / 60), ket(r).split('\n')[0], r.cert_code || '']),
+          widths: [5, 30, 32, 14, 15, 14, 16, 16] }), base + '.xlsx');
+        return false;
+      } },
+      { label: 'Unduh PDF', cls: 'btn-primary', onClick: async (ev) => {
+        ev.target.disabled = true;
+        try {
+          saveBlob(await attendancePdf({
+            app: me.app.name, campus: me.app.campus, title: 'DAFTAR HADIR', subtitle: e.title, info: meta,
+            headers: ['No', 'Nama Peserta', 'Email', 'Masuk', 'Keluar', 'Durasi', 'Keterangan'],
+            rows: rows.map((r, i) => [i + 1, r.name, r.email, hm(r.first_join), hm(r.last_leave), hms(r.attended_sec), ket(r)]),
+            columnStyles: { 1: { cellWidth: 108 }, 3: { halign: 'center', cellWidth: 38 }, 4: { halign: 'center', cellWidth: 40 }, 5: { halign: 'center', cellWidth: 46 }, 6: { halign: 'center', cellWidth: 104, fontSize: 8.5 } },
+            statusCol: 6,
+            summary: `Jumlah peserta hadir: ${rows.length} orang${e.certificate ? `  |  Memenuhi syarat sertifikat: ${ok} orang` : ''}  |  Rata-rata durasi: ${hms(avg)}`,
+            note: 'Masuk = pertama kali bergabung, Keluar = terakhir keluar dari room. Durasi dihitung dari masuk pertama sampai keluar terakhir, dibatasi jadwal event.',
+            sign: { date: new Intl.DateTimeFormat('id-ID', { timeZone: TZ, day: 'numeric', month: 'long', year: 'numeric' }).format(new Date()),
+              title: `${e.signerTitle || me.app.campus},`, name: e.signerName || 'Panitia Penyelenggara' },
+          }), base + '.pdf');
+        } catch (err) { toast('Gagal membuat PDF: ' + err.message, 'error'); }
+        ev.target.disabled = false; return false;
+      } },
       { label: 'Tutup', cls: 'btn-primary' }] });
   } catch (err) { toast(err.message, 'error'); }
 }

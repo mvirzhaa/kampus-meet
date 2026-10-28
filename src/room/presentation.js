@@ -284,6 +284,17 @@ function initInput() {
   ta.addEventListener('blur', commitText);
 
   for (const b of document.querySelectorAll('#wb-tools [data-tool]')) b.addEventListener('click', () => setTool(b.dataset.tool));
+  // Sembunyikan/tampilkan alat gambar (diingat per perangkat)
+  const tools = $('#wb-tools'), tg = $('#wb-collapse');
+  const setCollapsed = (c) => {
+    tools.classList.toggle('collapsed', c);
+    tg.title = c ? 'Tampilkan alat gambar' : 'Sembunyikan alat gambar';
+    tg.setAttribute('aria-expanded', String(!c));
+    try { localStorage.setItem('km:wbCollapsed', c ? '1' : ''); } catch { /* abaikan */ }
+  };
+  let c0 = false; try { c0 = localStorage.getItem('km:wbCollapsed') === '1'; } catch { /* abaikan */ }
+  setCollapsed(c0);
+  tg.addEventListener('click', () => setCollapsed(!tools.classList.contains('collapsed')));
   $('#wb-undo').addEventListener('click', undo);
   $('#wb-clear').addEventListener('click', async () => {
     if (!(await confirmDialog('Hapus semua anotasi?', 'Semua coretan di slide ini akan dihapus untuk semua peserta.', 'Hapus'))) return;

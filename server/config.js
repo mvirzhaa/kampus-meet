@@ -41,6 +41,12 @@ export const config = {
   egressApiUrl: env('EGRESS_API_URL', '').replace(/\/$/, ''),
   maxParticipantsDefault: int('MAX_PARTICIPANTS', 300),
   timezone: env('APP_TIMEZONE', 'Asia/Jakarta'),
+  // Terjemahan transkrip. Utama: di perangkat peserta (Chrome/Edge desktop, tanpa beban server).
+  // Opsional: cadangan lewat LibreTranslate yang di-host sendiri (untuk HP/Firefox/Safari). Kosong = mati.
+  translate: {
+    url: env('TRANSLATE_URL', '').replace(/\/$/, ''),
+    apiKey: env('TRANSLATE_API_KEY', ''),
+  },
   // Sertifikat hanya untuk peserta dengan durasi (masuk pertama → keluar terakhir) minimal sekian menit
   certMinMinutes: int('CERT_MIN_MINUTES', 15),
   recording: {

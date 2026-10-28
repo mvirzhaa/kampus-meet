@@ -8,6 +8,7 @@ import { currentUser, requireUser, requireCsrf } from './auth.js';
 import { lk, participantToken, publishSources, verifyWebhook } from './livekit.js';
 import { roomCode, numericPassword, randomToken, safeEqual, limiters, clean, cleanMultiline, encrypt, decrypt, sha256 } from './security.js';
 import { openPresence, closePresence, closeAllPresence, isOnline, presenceSessions, presenceReport } from './presence.js';
+import { normalizeEventPw } from './events.js';
 import { startServerRecording, stopServerRecording, onEgressWebhook, recordingActive, registerRecordingRoutes } from './recordings.js';
 
 export const uploadsDir = path.join(config.dataDir, 'uploads');
@@ -16,6 +17,9 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 const DEFAULT_LOCKS = { webcam: false, mic: false, seeCams: false, publicChat: false, privateChat: false, notes: false, seeUsers: false };
 
 // ---------- Status room (server = sumber kebenaran, dikirim ke klien lewat metadata LiveKit) ----------
+const eventOf = (roomId) => q('SELECT * FROM events WHERE room_id = ?').get(roomId);
+const eventOpen = (ev) => { const t = now(); return t >= ev.starts_at - 1800 && t <= ev.ends_at + 3600; };
+
 function loadRoom(code) {
   const room = q('SELECT * FROM rooms WHERE id = ?').get(String(code).toLowerCase());
   if (!room) throw new HttpError(404, 'Room tidak ditemukan. Periksa kembali ID room.');
@@ -23,10 +27,10 @@ function loadRoom(code) {
 }
 function getState(room) {
   let s = {}; try { s = JSON.parse(room.state || '{}'); } catch { /* default */ }
-  return { locks: { ...DEFAULT_LOCKS, ...(s.locks || {}) }, presenter: s.presenter || null, pres: s.pres || null, recording: !!s.recording, multiWb: !!s.multiWb, startedAt: s.startedAt || null, transcribe: !!s.transcribe };
+  return { locks: { ...DEFAULT_LOCKS, ...(s.locks || {}) }, presenter: s.presenter || null, pres: s.pres || null, recording: !!s.recording, multiWb: !!s.multiWb, startedAt: s.startedAt || null, transcribe: !!s.transcribe, spotlight: s.spotlight || null };
 }
 function publicMeta(room, st) {
-  return JSON.stringify({ ...st, name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode });
+  return JSON.stringify({ ...st, name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode, trServer: !!config.translate.url });
 }
 const ensured = new Set();
 async function saveState(room, st, { push = true } = {}) {
@@ -111,7 +115,7 @@ async function syncPermissions(room, st) {
   await Promise.allSettled(parts.map(p => {
     const role = p.attributes?.role || 'viewer';
     if (role === 'moderator') return null;
-    return lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role, isPresenter: st.presenter === p.identity, locks: st.locks }) });
+    return lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role, isPresenter: st.presenter === p.identity, locks: st.locks, isSpotlight: st.spotlight === p.identity }) });
   }));
 }
 
@@ -175,11 +179,15 @@ export function registerRoomRoutes(r) {
     const owner = q('SELECT name FROM users WHERE id = ?').get(room.owner_id);
     const isMod = (u && u.id === room.owner_id) || (k && safeEqual(k, room.moderator_key));
     const viaLink = isMod || (k && safeEqual(k, room.attendee_key));
+    const ev = eventOf(room.id);
+    // Event: tanpa pendaftaran — cukup login; password event ditanya sekali (bila diset penyelenggara)
+    const joinedBefore = ev && u ? !!q('SELECT 1 FROM event_regs WHERE event_id = ? AND user_id = ?').get(ev.id, u.id) : false;
     json(res, 200, {
-      room: { id: room.id, name: room.name, owner: owner?.name || '', scheduledAt: room.scheduled_at, durationMin: room.duration_min, allowGuests: !!room.allow_guests },
+      room: { id: room.id, name: room.name, owner: owner?.name || '', scheduledAt: ev ? ev.starts_at : room.scheduled_at, durationMin: room.duration_min, allowGuests: !!room.allow_guests },
       role: isMod ? 'moderator' : 'viewer',
-      needPassword: !viaLink && !!room.password_enc,
-      needLogin: !u && !room.allow_guests && !isMod,
+      event: ev ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, opensAt: ev.starts_at - 1800, open: eventOpen(ev) } : null,
+      needPassword: ev ? (!isMod && !!ev.password_enc && !joinedBefore) : (!viaLink && !!room.password_enc),
+      needLogin: !u && (ev ? !isMod : !room.allow_guests && !isMod),
       user: u ? { name: u.name } : null,
     });
   });
@@ -200,9 +208,21 @@ export function registerRoomRoutes(r) {
       if (!safeEqual(clean(b.password, 32), decrypt(room.password_enc))) { limiters.roomPw.take(room.id); throw new HttpError(401, 'Password room salah.'); }
     }
     if (!u && !room.allow_guests && role !== 'moderator') throw new HttpError(401, 'Room ini hanya untuk pengguna yang sudah login.');
-    const ev = q('SELECT id FROM events WHERE room_id = ?').get(room.id);
-    if (ev && role !== 'moderator' && !(u && q('SELECT 1 FROM event_regs WHERE event_id = ? AND user_id = ?').get(ev.id, u.id))) {
-      throw new HttpError(403, 'Room ini khusus peserta terdaftar. Daftar event terlebih dahulu.');
+    const ev = eventOf(room.id);
+    if (ev && role !== 'moderator') {
+      // Event: peserta login + punya link langsung gabung; tanpa tombol daftar.
+      if (!u) throw new HttpError(401, 'Silakan login terlebih dahulu untuk mengikuti event ini.');
+      if (now() < ev.starts_at - 1800) throw new HttpError(403, 'Room event belum dibuka. Room dibuka 30 menit sebelum acara dimulai.');
+      if (now() > ev.ends_at + 3600) throw new HttpError(403, 'Event sudah berakhir.');
+      if (!q('SELECT 1 FROM event_regs WHERE event_id = ? AND user_id = ?').get(ev.id, u.id)) {
+        if (ev.password_enc) {
+          if (limiters.roomPw.empty('ev:' + ev.id)) throw new HttpError(429, 'Terlalu banyak percobaan password salah di event ini. Coba lagi beberapa menit lagi.');
+          if (!safeEqual(normalizeEventPw(b.password), decrypt(ev.password_enc))) { limiters.roomPw.take('ev:' + ev.id); throw new HttpError(401, 'Password event salah.'); }
+        }
+        if (ev.quota && q('SELECT COUNT(*) AS n FROM event_regs WHERE event_id = ?').get(ev.id).n >= ev.quota) throw new HttpError(409, 'Kuota peserta event sudah penuh.');
+        // Tercatat otomatis sebagai peserta (dipakai untuk presensi & sertifikat)
+        q('INSERT OR IGNORE INTO event_regs (event_id, user_id, registered_at) VALUES (?,?,?)').run(ev.id, u.id, now());
+      }
     }
 
     const name = clean(b.name, 50) || u?.name || '';
@@ -231,7 +251,7 @@ export function registerRoomRoutes(r) {
     }
     await saveState(room, st);
 
-    const sources = publishSources({ role, isPresenter: st.presenter === identity, locks: st.locks });
+    const sources = publishSources({ role, isPresenter: st.presenter === identity, locks: st.locks, isSpotlight: st.spotlight === identity });
     const token = participantToken({ room: room.id, identity, name, role, sources, uid: u?.id });
     const seat = randomToken(24);
     q('INSERT INTO seats (id, room_id, identity, user_id, name, role, ban_key, exp) VALUES (?,?,?,?,?,?,?,?)')
@@ -259,7 +279,7 @@ export function registerRoomRoutes(r) {
     try { await lk.createRoom(room.id, { maxParticipants: room.max_participants, metadata: publicMeta(room, st) }); ensured.add(room.id); }
     catch (e) { console.error('[livekit]', e.message); throw new HttpError(503, 'Server media sedang tidak tersedia. Coba beberapa saat lagi.'); }
     await saveState(room, st);
-    const sources = publishSources({ role: s.role, isPresenter: st.presenter === s.identity, locks: st.locks });
+    const sources = publishSources({ role: s.role, isPresenter: st.presenter === s.identity, locks: st.locks, isSpotlight: st.spotlight === s.identity });
     openPresence({ roomId: room.id, session: st.startedAt, identity: s.identity, person: s.banKey, userId: s.uid, name: s.name, role: s.role });
     json(res, 200, { url: config.livekit.publicUrl, token: participantToken({ room: room.id, identity: s.identity, name: s.name, role: s.role, sources, uid: s.uid }) });
   });
@@ -312,7 +332,7 @@ export function registerRoomRoutes(r) {
     const p = parts.find(x => x.identity === b.identity);
     if (!p) throw new HttpError(404, 'Peserta tidak ditemukan.');
     const attrs = { ...(p.attributes || {}), role };
-    await lk.updateParticipant(room.id, b.identity, { attributes: attrs, sources: publishSources({ role, isPresenter: st.presenter === b.identity, locks: st.locks }) });
+    await lk.updateParticipant(room.id, b.identity, { attributes: attrs, sources: publishSources({ role, isPresenter: st.presenter === b.identity, locks: st.locks, isSpotlight: st.spotlight === b.identity }) });
     q('UPDATE seats SET role = ? WHERE room_id = ? AND identity = ?').run(role, room.id, b.identity);
   });
 
@@ -325,9 +345,25 @@ export function registerRoomRoutes(r) {
     for (const p of parts) {
       if ((p.attributes?.role || 'viewer') === 'moderator') continue;
       if (p.identity === prev || p.identity === b.identity) {
-        await lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role: 'viewer', isPresenter: p.identity === b.identity, locks: st.locks }) }).catch(() => {});
+        await lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role: 'viewer', isPresenter: p.identity === b.identity, locks: st.locks, isSpotlight: st.spotlight === p.identity }) }).catch(() => {});
       }
     }
+  });
+
+  // Sorot (spotlight): kamera satu peserta ditayangkan besar/layar penuh untuk semua orang.
+  modRoute('spotlight', async ({ room, b, st }) => {
+    const id = b.identity ? clean(b.identity, 80) : null;
+    const parts = await lk.listParticipants(room.id);
+    if (id && !parts.some(p => p.identity === id)) throw new HttpError(404, 'Peserta tidak ditemukan.');
+    const prev = st.spotlight;
+    st.spotlight = id;
+    await saveState(room, st);
+    for (const p of parts) {
+      const role = p.attributes?.role || 'viewer';
+      if (role === 'moderator' || (p.identity !== prev && p.identity !== id)) continue;
+      await lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role, isPresenter: st.presenter === p.identity, locks: st.locks, isSpotlight: st.spotlight === p.identity }) }).catch(() => {});
+    }
+    return { ok: true, spotlight: st.spotlight };
   });
 
   modRoute('locks', async ({ room, b, st }) => {
@@ -363,6 +399,38 @@ export function registerRoomRoutes(r) {
     const info = q('INSERT INTO transcripts (room_id, session, identity, user_id, name, lang, text, ts) VALUES (?,?,?,?,?,?,?,?)')
       .run(room.id, st.startedAt || now(), s.identity, s.uid, s.name, lang, text, now());
     json(res, 201, { id: Number(info.lastInsertRowid) });
+  });
+
+  // Terjemahan cadangan (opsional) lewat LibreTranslate yang di-host sendiri.
+  // Hasil di-cache & permintaan yang sama digabung, jadi 1 kalimat cukup diterjemahkan sekali walau ditonton ratusan peserta.
+  const trCache = new Map(); const trInflight = new Map();
+  r.post('/api/meet/:code/translate', async (req, res, { code }) => {
+    const s = seatFor(req, code);
+    if (!config.translate.url) throw new HttpError(404, 'Terjemahan lewat server tidak diaktifkan.');
+    if (limiters.translate.take(s.identity)) throw new HttpError(429, 'Terlalu banyak permintaan terjemahan.');
+    const b = await readJson(req);
+    const from = b.from === 'en' ? 'en' : 'id', to = b.to === 'en' ? 'en' : 'id';
+    const text = clean(b.text, 1000);
+    if (!text || from === to) return json(res, 200, { text });
+    const room = loadRoom(code);
+    if (!getState(room).transcribe) throw new HttpError(403, 'Transkripsi tidak aktif.');
+    const key = `${from}|${to}|${text}`;
+    if (trCache.has(key)) return json(res, 200, { text: trCache.get(key) });
+    let p = trInflight.get(key);
+    if (!p) {
+      p = fetch(config.translate.url + '/translate', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
+        body: JSON.stringify({ q: text, source: from, target: to, format: 'text', ...(config.translate.apiKey ? { api_key: config.translate.apiKey } : {}) }),
+      }).then(async (r2) => {
+        if (!r2.ok) throw new Error('HTTP ' + r2.status);
+        const out = clean((await r2.json()).translatedText, 2000);
+        trCache.set(key, out); if (trCache.size > 3000) trCache.delete(trCache.keys().next().value);
+        return out;
+      }).finally(() => trInflight.delete(key));
+      trInflight.set(key, p);
+    }
+    try { json(res, 200, { text: await p }); }
+    catch (e) { console.warn('[translate]', e.message); throw new HttpError(502, 'Layanan terjemahan sedang tidak tersedia.'); }
   });
 
   // Riwayat sesi berjalan (untuk peserta yang baru masuk / muat ulang)
@@ -401,7 +469,7 @@ export function registerRoomRoutes(r) {
 
   modRoute('end', async ({ room, st }) => {
     if (recordingActive(room.id)) await stopServerRecording(room);
-    st.presenter = null; st.recording = false; st.pres = st.pres ? { ...st.pres, page: 1 } : null; st.startedAt = null;
+    st.presenter = null; st.spotlight = null; st.recording = false; st.pres = st.pres ? { ...st.pres, page: 1 } : null; st.startedAt = null;
     await saveState(room, st, { push: false });
     try { await lk.deleteRoom(room.id); } catch { /* sudah berakhir */ }
     ensured.delete(room.id);
@@ -501,7 +569,12 @@ export function registerRoomRoutes(r) {
     const p = ev.participant || {};
     const isRecorder = p.kind === 'EGRESS' || p.kind === 2 || p.permission?.recorder || p.permission?.hidden || /^EG_/.test(identity || '');
     if (isRecorder) return json(res, 200, { ok: true });
-    if (ev.event === 'participant_left' && roomId && identity) closePresence(roomId, identity, t);
+    if (ev.event === 'participant_left' && roomId && identity) {
+      closePresence(roomId, identity, t);
+      // Peserta yang disorot keluar → sorotan dilepas
+      const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId);
+      if (room) { const st = getState(room); if (st.spotlight === identity) { st.spotlight = null; await saveState(room, st); } }
+    }
     if (ev.event === 'participant_joined' && roomId && identity) {
       const seat = seatByIdentity(roomId, identity);
       const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId);
@@ -514,14 +587,14 @@ export function registerRoomRoutes(r) {
         // Samakan peran & izin dengan keadaan server (mencegah token lama membawa hak yang sudah dicabut)
         const st = getState(room);
         const attrs = { ...(ev.participant.attributes || {}), role: seat.role };
-        lk.updateParticipant(roomId, identity, { attributes: attrs, sources: publishSources({ role: seat.role, isPresenter: st.presenter === identity, locks: st.locks }) }).catch(() => {});
+        lk.updateParticipant(roomId, identity, { attributes: attrs, sources: publishSources({ role: seat.role, isPresenter: st.presenter === identity, locks: st.locks, isSpotlight: st.spotlight === identity }) }).catch(() => {});
       }
     }
     if (ev.event === 'room_finished' && roomId) {
       ensured.delete(roomId);
       closeAllPresence(roomId, t);
       const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId);
-      if (room) { const st = getState(room); st.recording = false; st.presenter = null; st.startedAt = null; await saveState(room, st, { push: false }); }
+      if (room) { const st = getState(room); st.recording = false; st.presenter = null; st.spotlight = null; st.startedAt = null; await saveState(room, st, { push: false }); }
     }
     json(res, 200, { ok: true });
   });

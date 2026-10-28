@@ -8,6 +8,7 @@ import { HttpError, json, readJson } from './http.js';
 import { requireUser, requireCsrf, requireAdmin, isSuperAdmin } from './auth.js';
 import { clean, hashPassword, passwordProblem } from './security.js';
 import { lk } from './livekit.js';
+import { removeSponsorFiles } from './events.js';
 
 // ===== Kategori =====
 // events.category menyimpan NAMA kategori (bukan id) agar sertifikat yang sudah terbit
@@ -222,6 +223,7 @@ export function registerAdminRoutes(r, { uploadsDir }) {
     requireAdmin(req); requireCsrf(req);
     const e = q('SELECT * FROM events WHERE id = ?').get(parseInt(id, 10));
     if (!e) throw new HttpError(404, 'Event tidak ditemukan.');
+    removeSponsorFiles(e.id);
     tx(() => { q('DELETE FROM events WHERE id = ?').run(e.id); q('DELETE FROM rooms WHERE id = ?').run(e.room_id); });
     json(res, 200, { ok: true });
   });

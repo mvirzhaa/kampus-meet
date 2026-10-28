@@ -52,6 +52,21 @@ services:
     security_opt: ["no-new-privileges:true"]
     deploy: { resources: { limits: { memory: 768m } } }
 
+  translate:                              # OPSIONAL: cadangan terjemahan transkrip untuk HP/Firefox/Safari
+    profiles: ["translate"]               # aktifkan: docker compose --profile translate --env-file ../.env up -d
+    image: libretranslate/libretranslate:latest   # sematkan versi tertentu setelah diuji
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      LT_HOST: 127.0.0.1                  # hanya lokal; dipanggil aplikasi lewat TRANSLATE_URL=http://127.0.0.1:5000
+      LT_PORT: "5000"
+      LT_LOAD_ONLY: en,id                 # hanya Indonesia <-> Inggris agar ringan
+      LT_DISABLE_WEB_UI: "true"
+      LT_UPDATE_MODELS: "true"
+    volumes:
+      - lt-models:/home/libretranslate/.local
+    deploy: { resources: { limits: { cpus: "2", memory: 2g } } }
+
   caddy:
     image: caddy:2-alpine
     restart: unless-stopped
@@ -68,3 +83,4 @@ volumes:
   appdata:
   caddy_data:
   caddy_config:
+  lt-models:

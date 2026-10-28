@@ -106,3 +106,101 @@ export function saveBlob(blob, name) {
   a.href = URL.createObjectURL(blob); a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
 }
+
+// Font standar PDF (Helvetica) hanya memuat Latin-1: ganti tanda baca Unicode umum, sisanya '?'.
+const latin = (v) => String(v ?? '').replace(/[–—−]/g, '-').replace(/[‘’]/g, "'").replace(/[“”]/g, '"')
+  .replace(/…/g, '...').replace(/≥/g, '>=').replace(/≤/g, '<=').replace(/[^\x00-\xFF]/g, '?');
+
+/**
+ * Daftar hadir resmi: kop, judul, info kegiatan, tabel, ringkasan, blok tanda tangan,
+ * dan nomor "Halaman x dari y" di setiap halaman.
+ * @param {{orientation?:'portrait'|'landscape', app:string, campus:string, title?:string, subtitle?:string,
+ *   info:[string,string][], headers:string[], rows:any[][], columnStyles?:object, statusCol?:number,
+ *   summary?:string, sign?:{date?:string, title:string, name:string}, note?:string}} o
+ */
+export async function attendancePdf(o) {
+  const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
+  const doc = new jsPDF({ orientation: o.orientation || 'portrait', unit: 'pt', format: 'a4' });
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight(), M = 40;
+  const BLUE = [57, 99, 167], INK = [31, 43, 61], MUTED = [102, 114, 132];
+  const printed = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(/\./g, ':');
+
+  // --- Kop ---
+  const kop = () => {
+    doc.setFillColor(74, 120, 189); doc.roundedRect(M, 30, 34, 34, 7, 7, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M + 7, 41, 13, 12, 2, 2, 'F'); doc.triangle(M + 21, 47, M + 28, 42, M + 28, 52, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...INK); doc.text(latin(o.app), M + 46, 44);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTED); doc.text(latin(o.campus), M + 46, 59);
+    doc.setDrawColor(...BLUE); doc.setLineWidth(1.6); doc.line(M, 76, W - M, 76);
+    doc.setLineWidth(0.5); doc.line(M, 79, W - M, 79);
+  };
+  kop();
+
+  // --- Judul ---
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(...INK);
+  doc.text(latin(o.title || 'DAFTAR HADIR'), W / 2, 110, { align: 'center' });
+  let y = 116;
+  if (o.subtitle) {
+    doc.setFontSize(12); doc.setTextColor(...BLUE);
+    const lines = doc.splitTextToSize(latin(o.subtitle), W - M * 2 - 40);
+    doc.text(lines, W / 2, y + 14, { align: 'center' }); y += 14 + (lines.length - 1) * 15;
+  }
+
+  // --- Info kegiatan (label : nilai) ---
+  autoTable(doc, {
+    startY: y + 14, theme: 'plain', margin: { left: M, right: M },
+    body: o.info.map(([k, v]) => [latin(k), ':', latin(v)]),
+    styles: { fontSize: 10, cellPadding: { top: 2.5, bottom: 2.5, left: 0, right: 4 }, textColor: INK },
+    columnStyles: { 0: { cellWidth: 118, textColor: MUTED }, 1: { cellWidth: 10 }, 2: { fontStyle: 'bold' } },
+  });
+
+  // --- Tabel kehadiran ---
+  const sc = o.statusCol;
+  autoTable(doc, {
+    startY: doc.lastAutoTable.finalY + 12, theme: 'grid',
+    head: [o.headers.map(latin)], body: o.rows.map(r => r.map(latin)),
+    margin: { left: M, right: M, top: 96, bottom: 46 },
+    styles: { fontSize: 9, cellPadding: 5, lineColor: [205, 213, 225], lineWidth: 0.5, textColor: INK, valign: 'middle' },
+    headStyles: { fillColor: BLUE, textColor: 255, fontStyle: 'bold', halign: 'center' },
+    alternateRowStyles: { fillColor: [245, 248, 253] },
+    columnStyles: { 0: { halign: 'center', cellWidth: 26 }, ...(o.columnStyles || {}) },
+    didParseCell: (c) => {
+      if (c.section !== 'body' || c.column.index !== sc) return;
+      const ok = /^(Memenuhi|Ya|Hadir)/.test(String(c.cell.raw));
+      c.cell.styles.textColor = ok ? [33, 122, 82] : [178, 58, 58]; c.cell.styles.fontStyle = 'bold';
+    },
+    didDrawPage: (d) => { if (d.pageNumber > 1) kop(); },
+  });
+  y = doc.lastAutoTable.finalY;
+  if (!o.rows.length) { doc.setFontSize(10); doc.setTextColor(...MUTED); doc.text('Belum ada peserta yang tercatat hadir.', W / 2, y + 18, { align: 'center' }); y += 24; }
+
+  // --- Ringkasan + catatan + tanda tangan (dipindah ke halaman baru bila tidak muat) ---
+  const need = 26 + (o.note ? 26 : 0) + (o.sign ? 110 : 0);
+  if (y + need > H - 50) { doc.addPage(); kop(); y = 96; }
+  if (o.summary) { doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...INK); doc.text(latin(o.summary), M, y + 20); y += 20; }
+  if (o.note) {
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8.5); doc.setTextColor(...MUTED);
+    const n = doc.splitTextToSize(latin(o.note), W - M * 2); doc.text(n, M, y + 15); y += 15 + (n.length - 1) * 11;
+  }
+  if (o.sign) {
+    const x = W - M - 190, cx = x + 95;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...INK);
+    doc.text(latin(o.sign.date || ''), cx, y + 30, { align: 'center' });
+    const t = doc.splitTextToSize(latin(o.sign.title), 190); doc.text(t, cx, y + 44, { align: 'center' });
+    const ny = y + 44 + (t.length - 1) * 12 + 58;
+    doc.setFont('helvetica', 'bold'); doc.text(latin(o.sign.name), cx, ny, { align: 'center' });
+    doc.setDrawColor(...INK); doc.setLineWidth(0.6);
+    const nw = Math.min(190, doc.getTextWidth(latin(o.sign.name)) + 20); doc.line(cx - nw / 2, ny + 3, cx + nw / 2, ny + 3);
+  }
+
+  // --- Footer setiap halaman ---
+  const total = doc.internal.getNumberOfPages();
+  for (let p = 1; p <= total; p++) {
+    doc.setPage(p);
+    doc.setDrawColor(215, 222, 232); doc.setLineWidth(0.5); doc.line(M, H - 34, W - M, H - 34);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MUTED);
+    doc.text(latin(`Dokumen dibuat otomatis oleh ${o.app} pada ${printed} WIB`), M, H - 22);
+    doc.text(`Halaman ${p} dari ${total}`, W - M, H - 22, { align: 'right' });
+  }
+  return doc.output('blob');
+}

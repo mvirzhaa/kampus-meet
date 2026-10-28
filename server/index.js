@@ -20,7 +20,7 @@ const pages = [
   [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'], [/^\/admin\/?$/, 'admin.html'],
   [/^\/j\/[a-z-]{6,20}\/?$/, 'join.html'], [/^\/r\/[a-z-]{6,20}\/?$/, 'room.html'], [/^\/rec\/[a-z-]{6,20}\/?$/, 'room.html'],
   [/^\/event\/?$/, 'events.html'], [/^\/event\/[\w-]{3,80}\/?$/, 'event.html'],
-  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/panduan\/?$/, 'guide.html'],
+  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'],
 ];
 
 const server = http.createServer(async (req, res) => {

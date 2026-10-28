@@ -1,4 +1,4 @@
-import { initSite, $, api, fmtDateTime } from '../shared/common.js';
+import { initSite, $, api, fmtDateTime, fmtTime } from '../shared/common.js';
 
 const me = await initSite();
 const code = location.pathname.split('/')[2];
@@ -14,11 +14,23 @@ let data;
 try { data = await api('GET', `/api/join/${code}${key ? `?k=${encodeURIComponent(key)}` : ''}`); }
 catch (e) { showErr(e.message); throw e; }
 
-document.title = `${data.room.name} — Gabung`;
-$('.panel-head h1').textContent = data.room.name;
+const ev = data.event;
+document.title = `${ev?.title || data.room.name} — Gabung`;
+$('.panel-head h1').textContent = ev?.title || data.room.name;
 const lines = [];
 if (data.room.owner) lines.push(`Penyelenggara: ${data.room.owner}`);
-if (data.room.scheduledAt) lines.push(`Jadwal: ${fmtDateTime(data.room.scheduledAt)}`);
+if (ev) lines.push(`Jadwal: ${fmtDateTime(ev.startsAt)} – ${fmtTime(ev.endsAt)}`);
+else if (data.room.scheduledAt) lines.push(`Jadwal: ${fmtDateTime(data.room.scheduledAt)}`);
+if (ev && !ev.open && data.role !== 'moderator') {
+  showErr(Date.now() / 1000 < ev.opensAt ? `Room event dibuka ${fmtDateTime(ev.opensAt)} (30 menit sebelum acara).` : 'Event sudah berakhir.');
+}
+if (ev) {
+  $('label[for=j-pw]').textContent = 'Password Event';
+  $('#j-pw').placeholder = '6 karakter dari panitia';
+  $('#j-pw').maxLength = 6;
+  $('#j-pw').classList.add('pw-event');
+  $('#j-desc').textContent = 'Event ini dilindungi password. Masukkan password dari panitia (cukup sekali).';
+}
 if (data.role === 'moderator') lines.push('Anda masuk sebagai moderator.');
 if (lines.length) { info.textContent = lines.join(' · '); info.hidden = false; }
 
