@@ -47,6 +47,12 @@ INBOUND=$(getent ahostsv4 "$APP_DOMAIN" 2>/dev/null | awk '{print $1}' | head -1
 
 hdr "3. Container & port yang mendengarkan"
 docker compose -f deploy/docker-compose.yml --env-file .env ps 2>/dev/null || docker ps --format '  {{.Names}}\t{{.Status}}'
+SICK=$(docker compose -f deploy/docker-compose.yml --env-file .env ps --format '{{.Name}} {{.Status}}' 2>/dev/null | grep -iE 'restarting|exited|unhealthy')
+if [ -n "$SICK" ]; then
+  bad "ada container bermasalah:"
+  echo "$SICK" | sed 's/^/         /'
+  echo "         lihat sebabnya: docker compose -f deploy/docker-compose.yml --env-file .env logs --tail=40 <service>"
+else ok "semua container berjalan normal"; fi
 echo "  -- listening --"
 (ss -lntup 2>/dev/null || netstat -lntup 2>/dev/null) | grep -E ':(80|443|3000|6379|7880|7881|3478)\b' | sed 's/^/  /'
 
@@ -69,16 +75,22 @@ grep -E '^\s*(udp_port|port_range_start|port_range_end):' deploy/livekit.yaml | 
 
 hdr "5. Jalur publik media (HTTPS/WSS lewat Caddy)"
 if [ -n "$MEDIA_DOMAIN" ]; then
-  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "https://$MEDIA_DOMAIN/" 2>/dev/null)
+  # Diarahkan ke 127.0.0.1 karena banyak NAT tidak mendukung hairpin: server tidak bisa
+  # menghubungi IP publiknya sendiri. Jadi ini menguji Caddy + sertifikat, BUKAN jalur dari luar.
+  RES="--resolve $MEDIA_DOMAIN:443:127.0.0.1"
+  # shellcheck disable=SC2086
+  CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 $RES "https://$MEDIA_DOMAIN/" 2>/dev/null)
   case "$CODE" in
-    200) ok "https://$MEDIA_DOMAIN/ -> 200 (TLS + Caddy + LiveKit OK)" ;;
-    000) bad "https://$MEDIA_DOMAIN/ tidak bisa dihubungi (DNS / sertifikat / firewall 443)" ;;
+    200) ok "https://$MEDIA_DOMAIN/ -> 200 (Caddy + sertifikat + LiveKit OK)" ;;
+    000) bad "Caddy tidak merespons untuk $MEDIA_DOMAIN (cek: docker compose logs caddy)" ;;
     *)   bad "https://$MEDIA_DOMAIN/ -> HTTP $CODE (seharusnya 200)" ;;
   esac
-  UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+  # shellcheck disable=SC2086
+  UP=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 $RES \
        -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' \
        -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' "https://$MEDIA_DOMAIN/rtc" 2>/dev/null)
   [ "$UP" = "401" ] && ok "WebSocket /rtc diteruskan Caddy (401 tanpa token = normal)" || warn "/rtc -> HTTP $UP (harapan: 401)"
+  echo "  (jalur dari LUAR tidak bisa diuji dari dalam server — lihat bagian 7)"
 fi
 
 hdr "6. Firewall"
