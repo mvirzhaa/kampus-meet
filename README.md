@@ -128,6 +128,43 @@ Google tidak menerima unggahan anonim walaupun folder dibagikan publik; file ter
 
 3. Buka `https://meet.uika-bogor.ac.id`, **daftar akun pertama** (otomatis admin), lalu buat meeting.
 
+### Terjemahan transkrip di server (opsional)
+
+Chrome/Edge desktop menerjemahkan transkrip di perangkat masing-masing tanpa server. Peserta
+di HP, Firefox, atau Safari tidak punya penerjemah bawaan — untuk mereka, sediakan
+LibreTranslate sebagai cadangan:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env --profile translate up -d
+```
+
+Tunggu sampai siap, lalu uji:
+
+```bash
+curl -s http://127.0.0.1:5000/languages                       # harus memuat en dan id
+curl -s -X POST http://127.0.0.1:5000/translate -H 'Content-Type: application/json'   -d '{"q":"selamat pagi","source":"id","target":"en","format":"text"}'
+```
+
+Setelah terbukti jalan, isi `TRANSLATE_URL=http://127.0.0.1:5000` di `.env` lalu:
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env up -d --force-recreate app
+```
+
+`--force-recreate` perlu karena perubahan `.env` saja tidak selalu dianggap compose sebagai
+perubahan konfigurasi.
+
+> **`LT_UPDATE_MODELS` sengaja `"false"`.** Bila `"true"`, LibreTranslate menghubungi
+> repositori model setiap start. Pada jaringan yang tidak bisa menjangkau domain itu,
+> prosesnya **menggantung tanpa timeout** — layanan tidak pernah siap meski model sudah
+> ada di volume. Gejalanya: log berhenti di `Booting...`, CPU 0%, dan tidak ada yang
+> mendengarkan di port 5000. Perbarui model secara sengaja saja bila memang perlu.
+
+> **Layanan ini memakai Docker profile.** `docker compose up -d` biasa tidak akan
+> menjalankannya, tetapi juga tidak menghentikan yang sudah jalan — jadi alur deploy rutin
+> aman. Hindari `--remove-orphans`: perilakunya terhadap layanan berprofil tidak konsisten
+> antar versi compose dan bisa menghapus container ini.
+
 ## Mengatasi "Gagal terhubung ke server media"
 
 Halaman ruang terbuka dan spinner *Menghubungkan ke meeting…* berputar lalu gagal → halaman aplikasi
