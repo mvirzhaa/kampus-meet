@@ -30,7 +30,27 @@ function getState(room) {
   return { locks: { ...DEFAULT_LOCKS, ...(s.locks || {}) }, presenter: s.presenter || null, pres: s.pres || null, recording: !!s.recording, multiWb: !!s.multiWb, startedAt: s.startedAt || null, transcribe: !!s.transcribe, spotlight: s.spotlight || null };
 }
 function publicMeta(room, st) {
-  return JSON.stringify({ ...st, name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode, trServer: !!config.translate.url });
+  return JSON.stringify({ ...st, name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode, trServer: !!config.translate.url, app: config.appName, campus: config.campusName });
+}
+// ---------- Terjemahan lewat server (opsional, TRANSLATE_URL) ----------
+const trCache = new Map(); const trInflight = new Map();
+function serverTranslate(text, from, to) {
+  const key = `${from}|${to}|${text}`;
+  if (trCache.has(key)) return Promise.resolve(trCache.get(key));
+  let p = trInflight.get(key);
+  if (!p) {
+    p = fetch(config.translate.url + '/translate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
+      body: JSON.stringify({ q: text, source: from, target: to, format: 'text', ...(config.translate.apiKey ? { api_key: config.translate.apiKey } : {}) }),
+    }).then(async (r2) => {
+      if (!r2.ok) throw new Error('HTTP ' + r2.status);
+      const out = clean((await r2.json()).translatedText, 2000);
+      trCache.set(key, out); if (trCache.size > 3000) trCache.delete(trCache.keys().next().value);
+      return out;
+    }).finally(() => trInflight.delete(key));
+    trInflight.set(key, p);
+  }
+  return p;
 }
 const ensured = new Set();
 async function saveState(room, st, { push = true } = {}) {
@@ -396,14 +416,25 @@ export function registerRoomRoutes(r) {
     const text = clean(b.text, 1000);
     if (!text) throw new HttpError(400, 'Teks kosong.');
     const lang = b.lang === 'en-US' ? 'en-US' : 'id-ID';
-    const info = q('INSERT INTO transcripts (room_id, session, identity, user_id, name, lang, text, ts) VALUES (?,?,?,?,?,?,?,?)')
-      .run(room.id, st.startedAt || now(), s.identity, s.uid, s.name, lang, text, now());
-    json(res, 201, { id: Number(info.lastInsertRowid) });
+    const cid = clean(b.id, 20) || null;
+    const session = st.startedAt || now();
+    const info = q('INSERT INTO transcripts (room_id, session, identity, user_id, name, lang, text, ts, cid) VALUES (?,?,?,?,?,?,?,?,?)')
+      .run(room.id, session, s.identity, s.uid, s.name, lang, text, now(), cid);
+    const rowId = Number(info.lastInsertRowid);
+    json(res, 201, { id: rowId });
+    // Bila server terjemahan aktif: terjemahkan sekali ke bahasa lainnya lalu bagikan ke semua peserta & perekam
+    if (config.translate.url && cid) {
+      const from = lang === 'en-US' ? 'en' : 'id', to = from === 'en' ? 'id' : 'en';
+      serverTranslate(text, from, to).then((out) => {
+        if (!out) return;
+        q('UPDATE transcripts SET tr_lang = ?, tr_text = ? WHERE id = ? AND tr_text IS NULL').run(to === 'en' ? 'en-US' : 'id-ID', out, rowId);
+        return lk.sendData(room.id, { t: 'cap-tr', who: s.identity, id: cid, to, text: out.slice(0, 1500) });
+      }).catch(e => console.warn('[translate]', e.message));
+    }
   });
 
   // Terjemahan cadangan (opsional) lewat LibreTranslate yang di-host sendiri.
   // Hasil di-cache & permintaan yang sama digabung, jadi 1 kalimat cukup diterjemahkan sekali walau ditonton ratusan peserta.
-  const trCache = new Map(); const trInflight = new Map();
   r.post('/api/meet/:code/translate', async (req, res, { code }) => {
     const s = seatFor(req, code);
     if (!config.translate.url) throw new HttpError(404, 'Terjemahan lewat server tidak diaktifkan.');
@@ -414,29 +445,29 @@ export function registerRoomRoutes(r) {
     if (!text || from === to) return json(res, 200, { text });
     const room = loadRoom(code);
     if (!getState(room).transcribe) throw new HttpError(403, 'Transkripsi tidak aktif.');
-    const key = `${from}|${to}|${text}`;
-    if (trCache.has(key)) return json(res, 200, { text: trCache.get(key) });
-    let p = trInflight.get(key);
-    if (!p) {
-      p = fetch(config.translate.url + '/translate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(10000),
-        body: JSON.stringify({ q: text, source: from, target: to, format: 'text', ...(config.translate.apiKey ? { api_key: config.translate.apiKey } : {}) }),
-      }).then(async (r2) => {
-        if (!r2.ok) throw new Error('HTTP ' + r2.status);
-        const out = clean((await r2.json()).translatedText, 2000);
-        trCache.set(key, out); if (trCache.size > 3000) trCache.delete(trCache.keys().next().value);
-        return out;
-      }).finally(() => trInflight.delete(key));
-      trInflight.set(key, p);
-    }
-    try { json(res, 200, { text: await p }); }
+    try { json(res, 200, { text: await serverTranslate(text, from, to) }); }
     catch (e) { console.warn('[translate]', e.message); throw new HttpError(502, 'Layanan terjemahan sedang tidak tersedia.'); }
+  });
+
+  // Terjemahan satu kalimat transkrip dibagikan (oleh pembicaranya sendiri / moderator) → disimpan untuk ekspor.
+  r.post('/api/meet/:code/transcript/tr', async (req, res, { code }) => {
+    const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room);
+    if (limiters.translate.take('trs:' + s.identity)) throw new HttpError(429, 'Terlalu cepat.');
+    const b = await readJson(req, 8 * 1024);
+    const who = clean(b.who, 80), cid = clean(b.id, 20), text = clean(b.text, 2000);
+    if (!who || !cid || !text) throw new HttpError(400, 'Data tidak lengkap.');
+    if (who !== s.identity && s.role !== 'moderator') throw new HttpError(403, 'Tidak diizinkan.');
+    const trLang = b.to === 'en' ? 'en-US' : 'id-ID';
+    q('UPDATE transcripts SET tr_lang = ?, tr_text = ? WHERE room_id = ? AND session = ? AND identity = ? AND cid = ? AND tr_text IS NULL AND lang != ?')
+      .run(trLang, text, room.id, st.startedAt || 0, who, cid, trLang);
+    json(res, 200, { ok: true });
   });
 
   // Riwayat sesi berjalan (untuk peserta yang baru masuk / muat ulang)
   r.get('/api/meet/:code/transcript', (req, res, { code }) => {
     seatFor(req, code); const room = loadRoom(code); const st = getState(room);
-    const rows = st.startedAt ? q(`SELECT * FROM (SELECT id, identity, name, lang, text, ts FROM transcripts WHERE room_id = ? AND session = ? ORDER BY ts DESC, id DESC LIMIT 300) ORDER BY ts, id`).all(room.id, st.startedAt) : [];
+    const limit = new URL(req.url, 'http://x').searchParams.get('all') ? 20000 : 300;   // all=1 untuk ekspor PDF/Word
+    const rows = st.startedAt ? q(`SELECT * FROM (SELECT id, identity, name, lang, text, ts, cid, tr_lang, tr_text FROM transcripts WHERE room_id = ? AND session = ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts, id`).all(room.id, st.startedAt, limit) : [];
     json(res, 200, { lines: rows });
   });
 
@@ -446,7 +477,7 @@ export function registerRoomRoutes(r) {
     const sessions = q('SELECT session, COUNT(*) AS n, MIN(ts) AS first, MAX(ts) AS last FROM transcripts WHERE room_id = ? GROUP BY session ORDER BY session DESC LIMIT 100').all(room.id);
     const sp = new URL(req.url, 'http://x').searchParams;
     const session = parseInt(sp.get('session'), 10);
-    const lines = Number.isFinite(session) ? q('SELECT name, lang, text, ts, user_id FROM transcripts WHERE room_id = ? AND session = ? ORDER BY ts, id LIMIT 20000').all(room.id, session) : [];
+    const lines = Number.isFinite(session) ? q('SELECT name, lang, text, ts, user_id, tr_lang, tr_text FROM transcripts WHERE room_id = ? AND session = ? ORDER BY ts, id LIMIT 20000').all(room.id, session) : [];
     json(res, 200, { sessions, lines, retentionDays: config.transcriptRetentionDays });
   });
 

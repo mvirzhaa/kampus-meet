@@ -67,7 +67,12 @@
     </div>
     <div class="p-view" data-view="transcript" hidden>
       <header class="p-head"><button class="icon-btn" data-close><i data-i="chevron-left"></i></button><span>Transkrip Otomatis</span>
-        <button class="icon-btn" id="tr-dl" title="Unduh transkrip"><i data-i="download" data-s="18"></i></button></header>
+        <span class="tr-dl-wrap"><button class="icon-btn" id="tr-dl" title="Unduh transkrip (PDF / Word / TXT)" aria-haspopup="menu"><i data-i="download" data-s="18"></i></button>
+          <span class="tr-dl-menu" id="tr-dl-menu" role="menu" hidden>
+            <button type="button" role="menuitem" data-fmt="pdf"><i data-i="file" data-s="16"></i>Unduh PDF</button>
+            <button type="button" role="menuitem" data-fmt="docx"><i data-i="file" data-s="16"></i>Unduh Word (.docx)</button>
+            <button type="button" role="menuitem" data-fmt="txt"><i data-i="file" data-s="16"></i>Unduh teks (.txt)</button>
+          </span></span></header>
       <div class="tr-ctl">
         <button class="btn btn-sm btn-primary mod-only" id="tr-toggle" type="button">Mulai transkripsi</button>
         <label class="tr-lang">Bahasa ucapan saya
@@ -89,7 +94,7 @@
   <!-- Panggung utama -->
   <main class="stage" id="stage">
     <header class="r-top">
-      <button class="icon-btn light" id="toggle-nav" title="Tampilkan/sembunyikan daftar pengguna" aria-label="Daftar pengguna"><i data-i="users" data-s="20"></i></button>
+      <button class="icon-btn light" id="toggle-nav" title="Tampilkan menu (chat, catatan, transkrip, pengguna)" aria-label="Tampilkan/sembunyikan menu" aria-expanded="false"><i data-i="menu" data-s="20"></i><b class="nav-dot" id="nav-dot" hidden></b></button>
       <div class="r-title"><span id="room-name">Meeting</span><span class="sep"></span><span id="elapsed">00:00</span></div>
       <button class="rec-btn" id="rec-btn" type="button"><span class="rec-dot"></span><span id="rec-label">Mulai rekam</span></button>
       <span class="cap-badge" id="cap-badge" hidden title="Ucapan peserta sedang ditranskripsi otomatis"><i data-i="captions" data-s="16"></i><span>Transkripsi aktif</span></span>
@@ -107,7 +112,6 @@
       </div>
     </header>
 
-    <div class="rec-banner" id="rec-banner" hidden><span class="rec-dot on"></span>Meeting ini sedang direkam</div>
 
     <div class="cams" id="cams" hidden>
       <button class="cam-page prev" id="cam-prev" aria-label="Kamera sebelumnya" hidden><i data-i="chevron-left"></i></button>

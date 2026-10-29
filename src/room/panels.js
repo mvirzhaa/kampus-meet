@@ -192,6 +192,16 @@ const pUnread = new Map();
 function badge() {
   const b = $('#unread-chat'); b.textContent = unread.chat > 99 ? '99+' : unread.chat; b.hidden = !unread.chat;
   renderPchatNav();
+  syncNavBtn();
+}
+/** Titik merah di tombol menu saat menu dilipat dan ada pesan/catatan/transkrip/polling baru. */
+function syncNavBtn() {
+  const btn = $('#toggle-nav'); if (!btn) return;
+  const hidden = app().classList.contains('nav-hidden');
+  btn.setAttribute('aria-expanded', String(!hidden));
+  btn.title = hidden ? 'Tampilkan menu (chat, catatan, transkrip, pengguna)' : 'Sembunyikan menu';
+  const any = unread.chat > 0 || [...pUnread.values()].some(Boolean) || ['#unread-notes', '#unread-tr', '#unread-poll'].some(s => $(s) && !$(s).hidden);
+  $('#nav-dot').hidden = !(hidden && any);
 }
 const scrollEnd = (el, force) => { if (force || el.scrollHeight - el.scrollTop - el.clientHeight < 120) el.scrollTop = el.scrollHeight; };
 
@@ -487,8 +497,19 @@ export function initPanels() {
   on('participants', scheduleUsers); on('hands', scheduleUsers); on('speaking', scheduleUsers);
   on('meta', () => { scheduleUsers(); applyChatLock(); applyNotesLock(); });
   renderChat(); renderPoll(); applyChatLock(); applyNotesLock(); scheduleUsers();
-  if (innerWidth <= 860) app().classList.add('nav-hidden');
-  if (innerWidth <= 520) app().classList.add('panel-hidden');
+  // Bawaan: menu kiri & panel dilipat agar panggung utama tampil besar
+  app().classList.add('nav-hidden', 'panel-hidden');
+  syncNavBtn();
+  $('#toggle-nav').addEventListener('click', () => {
+    const a = app();
+    if (a.classList.contains('nav-hidden')) {
+      a.classList.remove('nav-hidden');
+      if (innerWidth > 520) openPanel(current || 'chat');
+    } else a.classList.add('nav-hidden', 'panel-hidden');
+    syncNavBtn();
+  });
+  new MutationObserver(syncNavBtn).observe(app(), { attributes: true, attributeFilter: ['class'] });
+  new MutationObserver(syncNavBtn).observe($('.r-nav'), { attributes: true, subtree: true, attributeFilter: ['hidden'] });
   // Ponsel: ketuk area panggung untuk menutup panel samping
   $('#stage').addEventListener('pointerdown', (e) => {
     if (innerWidth <= 860 && !e.target.closest('#toggle-nav') && !app().classList.contains('nav-hidden')) app().classList.add('nav-hidden');

@@ -5,7 +5,7 @@
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
 
-function zip(files) {
+function zip(files, type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
   const enc = new TextEncoder(); const parts = []; const central = []; let offset = 0;
   for (const [name, text] of files) {
     const nameB = enc.encode(name); const data = enc.encode(text); const crc = crc32(data);
@@ -24,7 +24,7 @@ function zip(files) {
   const end = new DataView(new ArrayBuffer(22));
   end.setUint32(0, 0x06054b50, true); end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
   end.setUint32(12, cenSize, true); end.setUint32(16, offset, true);
-  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+  return new Blob([...parts, ...central, new Uint8Array(end.buffer)], { type });
 }
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
@@ -160,7 +160,7 @@ export async function attendancePdf(o) {
     startY: doc.lastAutoTable.finalY + 12, theme: 'grid',
     head: [o.headers.map(latin)], body: o.rows.map(r => r.map(latin)),
     margin: { left: M, right: M, top: 96, bottom: 46 },
-    styles: { fontSize: 9, cellPadding: 5, lineColor: [205, 213, 225], lineWidth: 0.5, textColor: INK, valign: 'middle' },
+    styles: { fontSize: o.bodyFontSize || 9, cellPadding: 5, lineColor: [205, 213, 225], lineWidth: 0.5, textColor: INK, valign: o.valign || 'middle' },
     headStyles: { fillColor: BLUE, textColor: 255, fontStyle: 'bold', halign: 'center' },
     alternateRowStyles: { fillColor: [245, 248, 253] },
     columnStyles: { 0: { halign: 'center', cellWidth: 26 }, ...(o.columnStyles || {}) },
@@ -172,7 +172,7 @@ export async function attendancePdf(o) {
     didDrawPage: (d) => { if (d.pageNumber > 1) kop(); },
   });
   y = doc.lastAutoTable.finalY;
-  if (!o.rows.length) { doc.setFontSize(10); doc.setTextColor(...MUTED); doc.text('Belum ada peserta yang tercatat hadir.', W / 2, y + 18, { align: 'center' }); y += 24; }
+  if (!o.rows.length) { doc.setFontSize(10); doc.setTextColor(...MUTED); doc.text(o.emptyText || 'Belum ada peserta yang tercatat hadir.', W / 2, y + 18, { align: 'center' }); y += 24; }
 
   // --- Ringkasan + catatan + tanda tangan (dipindah ke halaman baru bila tidak muat) ---
   const need = 26 + (o.note ? 26 : 0) + (o.sign ? 110 : 0);
@@ -203,4 +203,98 @@ export async function attendancePdf(o) {
     doc.text(`Halaman ${p} dari ${total}`, W - M, H - 22, { align: 'right' });
   }
   return doc.output('blob');
+}
+
+// ==================== Transkrip (PDF & Word) ====================
+const TZ_ID = 'Asia/Jakarta';
+const fDay = (sec) => new Intl.DateTimeFormat('id-ID', { timeZone: TZ_ID, weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date(sec * 1000));
+const fClock = (sec, s = true) => new Intl.DateTimeFormat('id-ID', { timeZone: TZ_ID, hour: '2-digit', minute: '2-digit', ...(s ? { second: '2-digit' } : {}), hour12: false }).format(new Date(sec * 1000)).replace(/\./g, ':');
+const LANG_TAG = { 'id-ID': 'ID', 'en-US': 'EN' };
+
+/** Ringkasan isi transkrip untuk kepala dokumen. */
+function transcriptSummary(o) {
+  const L = o.lines; const first = L[0]?.ts, last = L[L.length - 1]?.ts;
+  const count = new Map(); for (const l of L) count.set(l.name, (count.get(l.name) || 0) + 1);
+  const langs = new Map(); for (const l of L) langs.set(l.lang, (langs.get(l.lang) || 0) + 1);
+  const hasTr = L.some(l => l.trText);
+  return {
+    hasTr,
+    info: [
+      ['Nama meeting', o.title], ['ID room', o.roomId],
+      ['Hari, tanggal', first ? fDay(first) : '-'],
+      ['Waktu', first ? `${fClock(first, false)} - ${fClock(last, false)} WIB` : '-'],
+      ['Jumlah kalimat', String(L.length)],
+      ['Pembicara', [...count].map(([n, c]) => `${n} (${c})`).join(', ')],
+      ['Bahasa ucapan', [...langs].map(([k, c]) => `${k === 'en-US' ? 'English' : 'Indonesia'} (${c})`).join(', ')],
+      ...(hasTr ? [['Terjemahan', `${L.filter(l => l.trText).length} kalimat (otomatis, Indonesia <-> English)`]] : []),
+    ],
+  };
+}
+
+/** Transkrip rapi dalam PDF A4: kop, info sesi, tabel waktu/pembicara/ucapan/terjemahan, nomor halaman. */
+export function transcriptPdf(o) {
+  const { hasTr, info } = transcriptSummary(o);
+  return attendancePdf({
+    app: o.app, campus: o.campus, title: 'TRANSKRIP OTOMATIS', subtitle: o.title, info,
+    headers: hasTr ? ['Waktu', 'Pembicara', 'Bhs', 'Ucapan', 'Terjemahan'] : ['Waktu', 'Pembicara', 'Bhs', 'Ucapan'],
+    rows: o.lines.map(l => [fClock(l.ts), l.name, LANG_TAG[l.lang] || 'ID', l.text, ...(hasTr ? [l.trText ? `[${LANG_TAG[l.trLang] || ''}] ${l.trText}` : '-'] : [])]),
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 44, fontSize: 8 }, 1: { cellWidth: hasTr ? 82 : 100, fontStyle: 'bold' }, 2: { halign: 'center', cellWidth: 26, fontSize: 8 },
+      ...(hasTr ? { 4: { fontStyle: 'italic', textColor: [44, 82, 130] } } : {}),
+    },
+    bodyFontSize: 8.5, valign: 'top',
+    note: 'Transkrip dibuat otomatis dari pengenalan suara di perangkat masing-masing pembicara' + (hasTr ? ', dan terjemahan dibuat otomatis oleh mesin' : '') + '; dapat mengandung kekeliruan.',
+  });
+}
+
+const xe = (s) => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g, '');
+const run = (text, { b, i, color, size } = {}) => `<w:r><w:rPr>${b ? '<w:b/>' : ''}${i ? '<w:i/>' : ''}${color ? `<w:color w:val="${color}"/>` : ''}${size ? `<w:sz w:val="${size}"/><w:szCs w:val="${size}"/>` : ''}</w:rPr><w:t xml:space="preserve">${xe(text)}</w:t></w:r>`;
+const para = (runs, { align, after = 60, before = 0, border } = {}) => `<w:p><w:pPr>${border ? '<w:pBdr><w:bottom w:val="double" w:sz="6" w:space="4" w:color="3963A7"/></w:pBdr>' : ''}<w:spacing w:before="${before}" w:after="${after}"/>${align ? `<w:jc w:val="${align}"/>` : ''}</w:pPr>${runs}</w:p>`;
+const cell = (content, w, { fill, header } = {}) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}${header ? '<w:vAlign w:val="center"/>' : ''}</w:tcPr>${content}</w:tc>`;
+
+/** Transkrip dalam Microsoft Word (.docx) — ditulis langsung tanpa pustaka. */
+export function transcriptDocx(o) {
+  const { hasTr, info } = transcriptSummary(o);
+  const widths = hasTr ? [1000, 1700, 560, 3189, 3189] : [1000, 2000, 560, 6078];
+  const heads = hasTr ? ['Waktu', 'Pembicara', 'Bhs', 'Ucapan', 'Terjemahan'] : ['Waktu', 'Pembicara', 'Bhs', 'Ucapan'];
+  const P = (text, opts = {}, pOpts = {}) => para(run(text, opts), { after: 0, ...pOpts });
+  const headerRow = `<w:tr><w:trPr><w:tblHeader/><w:cantSplit/></w:trPr>${heads.map((t, i) => cell(P(t, { b: true, color: 'FFFFFF', size: 19 }, { align: 'center' }), widths[i], { fill: '3963A7', header: true })).join('')}</w:tr>`;
+  const bodyRows = o.lines.map((l, k) => {
+    const fill = k % 2 ? 'F5F8FD' : null;
+    const cells = [
+      cell(P(fClock(l.ts), { size: 17, color: '5B6A80' }, { align: 'center' }), widths[0], { fill }),
+      cell(P(l.name, { b: true, size: 19 }), widths[1], { fill }),
+      cell(P(LANG_TAG[l.lang] || 'ID', { size: 17, color: '5B6A80' }, { align: 'center' }), widths[2], { fill }),
+      cell(P(l.text, { size: 19 }), widths[3], { fill }),
+      ...(hasTr ? [cell(l.trText ? para(run(`[${LANG_TAG[l.trLang] || ''}] `, { b: true, size: 16, color: '2C5282' }) + run(l.trText, { i: true, size: 19, color: '2C5282' }), { after: 0 }) : P('-', { color: 'A0AEC0' }), widths[4], { fill })] : []),
+    ];
+    return `<w:tr><w:trPr><w:cantSplit/></w:trPr>${cells.join('')}</w:tr>`;
+  }).join('');
+  const borders = '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map(b => `<w:${b} w:val="single" w:sz="4" w:space="0" w:color="CDD5E1"/>`).join('') + '</w:tblBorders>';
+  const grid = (ws) => `<w:tblGrid>${ws.map(w => `<w:gridCol w:w="${w}"/>`).join('')}</w:tblGrid>`;
+  const mainTable = `<w:tbl><w:tblPr><w:tblW w:w="9638" w:type="dxa"/><w:tblLayout w:type="fixed"/>${borders}<w:tblCellMar><w:top w:w="50" w:type="dxa"/><w:left w:w="90" w:type="dxa"/><w:bottom w:w="50" w:type="dxa"/><w:right w:w="90" w:type="dxa"/></w:tblCellMar></w:tblPr>${grid(widths)}${headerRow}${bodyRows}</w:tbl>`;
+  const infoTable = `<w:tbl><w:tblPr><w:tblW w:w="9638" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr>${grid([2200, 240, 7198])}${info.map(([k, v]) =>
+    `<w:tr>${cell(P(k, { size: 20, color: '667284' }), 2200)}${cell(P(':', { size: 20 }), 240)}${cell(P(v, { b: true, size: 20 }), 7198)}</w:tr>`).join('')}</w:tbl>`;
+  const printed = new Intl.DateTimeFormat('id-ID', { timeZone: TZ_ID, day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(/\./g, ':');
+  const body = [
+    para(run(o.app, { b: true, size: 30, color: '1F2B3D' }), { after: 0 }),
+    para(run(o.campus, { size: 20, color: '667284' }), { after: 120, border: true }),
+    para(run('TRANSKRIP OTOMATIS', { b: true, size: 34, color: '1F2B3D' }), { align: 'center', before: 240, after: 40 }),
+    para(run(o.title, { b: true, size: 24, color: '3963A7' }), { align: 'center', after: 240 }),
+    infoTable,
+    para('', { after: 160 }),
+    mainTable,
+    para(run('Transkrip dibuat otomatis dari pengenalan suara di perangkat masing-masing pembicara' + (hasTr ? ', dan terjemahan dibuat otomatis oleh mesin' : '') + '; dapat mengandung kekeliruan.', { i: true, size: 16, color: '667284' }), { before: 160 }),
+  ].join('');
+  const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const footer = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${NS}><w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="D7DEE8"/></w:pBdr><w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs><w:rPr><w:sz w:val="15"/></w:rPr></w:pPr>${run(`Dokumen dibuat otomatis oleh ${o.app} pada ${printed} WIB`, { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/></w:rPr><w:tab/></w:r>${run('Halaman ', { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>${run(' dari ', { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`;
+  const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1000" w:right="1134" w:bottom="1000" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="id-ID"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="60" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`;
+  const types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>';
+  const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>';
+  const docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>';
+  const iso = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
+  const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xe('Transkrip - ' + o.title)}</dc:title><dc:creator>${xe(o.app)}</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created></cp:coreProperties>`;
+  return zip([['[Content_Types].xml', types], ['_rels/.rels', rels], ['word/document.xml', doc], ['word/styles.xml', styles], ['word/_rels/document.xml.rels', docRels], ['word/footer1.xml', footer], ['docProps/core.xml', core]],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 }

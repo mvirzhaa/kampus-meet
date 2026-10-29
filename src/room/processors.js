@@ -63,3 +63,37 @@ export function makeBackgrounds() {
     { id: 'abu', name: 'Abu', url: mk((x, w, hh) => { const g = x.createRadialGradient(w / 2, hh / 2, 50, w / 2, hh / 2, w * 0.7); g.addColorStop(0, '#6b7280'); g.addColorStop(1, '#1f2937'); x.fillStyle = g; x.fillRect(0, 0, w, hh); }) },
   ];
 }
+
+// ---------- Latar unggahan peserta (hanya disimpan di perangkat ini, tidak dikirim ke server) ----------
+const CUSTOM_KEY = 'km:bg-custom';
+const MAX_CUSTOM = 4;
+export function customBackgrounds() {
+  try { const v = JSON.parse(localStorage.getItem(CUSTOM_KEY) || '[]'); return Array.isArray(v) ? v.filter(b => b && /^c-[\w-]+$/.test(b.id) && /^data:image\/jpeg;base64,/.test(b.url)) : []; }
+  catch { return []; }
+}
+export const allBackgrounds = () => [...makeBackgrounds(), ...customBackgrounds()];
+
+/** Ubah gambar unggahan menjadi 1280x720 (dipotong rapi, JPEG) lalu simpan. */
+export async function addCustomBackground(file) {
+  if (!/^image\/(png|jpeg|webp)$/.test(file.type)) throw new Error('Gunakan gambar PNG, JPG, atau WebP.');
+  if (file.size > 15 * 1024 * 1024) throw new Error('Ukuran gambar maksimal 15 MB.');
+  const bmp = await createImageBitmap(file).catch(() => { throw new Error('Gambar tidak dapat dibaca.'); });
+  const W = 1280, H = 720;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const sc = Math.max(W / bmp.width, H / bmp.height);
+  const dw = bmp.width * sc, dh = bmp.height * sc;
+  x.drawImage(bmp, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  bmp.close?.();
+  let url = c.toDataURL('image/jpeg', 0.82);
+  if (url.length > 600_000) url = c.toDataURL('image/jpeg', 0.65);
+  const list = customBackgrounds();
+  const item = { id: 'c-' + Date.now().toString(36), name: (file.name || 'Gambar saya').replace(/\.[^.]+$/, '').slice(0, 40), url };
+  const next = [...list, item].slice(-MAX_CUSTOM);
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(next)); }
+  catch { throw new Error('Penyimpanan browser penuh. Hapus salah satu latar unggahan lalu coba lagi.'); }
+  return item;
+}
+export function removeCustomBackground(id) {
+  try { localStorage.setItem(CUSTOM_KEY, JSON.stringify(customBackgrounds().filter(b => b.id !== id))); } catch { /* abaikan */ }
+}

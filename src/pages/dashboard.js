@@ -1,7 +1,7 @@
 import { initSite, $, $$, h, icon, api, toast, modal, confirmDialog, copyText, fmtDateTime, fmtDate, fmtTime, formData,
   toLocalInput, fromLocalInput, requireLogin, roomLinksModal, invitationText, startInstantMeeting, loadMe } from '../shared/common.js';
 import { roomFormModal, emptyState } from '../shared/ui.js';
-import { toXlsx, attendancePdf, saveBlob } from '../shared/export.js';
+import { toXlsx, attendancePdf, transcriptPdf, transcriptDocx, saveBlob } from '../shared/export.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -183,13 +183,18 @@ async function transcripts(room, pick) {
   const fmt = (t) => new Date(t * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).replace(/\./g, ':');
   const sel = h('select', { style: { maxWidth: '100%' }, onchange: () => { m.close(); transcripts(room, +sel.value); } },
     data.sessions.map(x => h('option', { value: x.session, selected: x.session === session, text: `${fmtDateTime(x.first)} · ${x.n} kalimat` })));
-  const text = () => `Transkrip otomatis — ${room.name}\nRoom: ${room.id}\nSesi: ${fmtDateTime(data.lines[0]?.ts || session)}\n\n` + data.lines.map(l => `[${fmt(l.ts)}] ${l.name}${l.user_id ? '' : ' (tamu)'}: ${l.text}`).join('\n');
+  const tag = (lg) => lg === 'en-US' ? 'EN' : 'ID';
+  const text = () => `Transkrip otomatis — ${room.name}\nRoom: ${room.id}\nSesi: ${fmtDateTime(data.lines[0]?.ts || session)}\n\n` + data.lines.map(l => `[${fmt(l.ts)}] ${l.name}${l.user_id ? '' : ' (tamu)'} (${tag(l.lang)}): ${l.text}` + (l.tr_text ? `\n           [${tag(l.tr_lang)}] ${l.tr_text}` : '')).join('\n');
+  const expInfo = () => ({ app: me.app.name, campus: me.app.campus, title: room.name, roomId: room.id,
+    lines: data.lines.map(l => ({ ts: l.ts, name: l.name + (l.user_id ? '' : ' (tamu)'), lang: l.lang, text: l.text, trLang: l.tr_text ? l.tr_lang : null, trText: l.tr_text || null })) });
+  const base = `transkrip-${room.id}-${new Date(session * 1000).toISOString().slice(0, 10)}`;
   const speakers = [...new Set(data.lines.map(l => l.name))];
   const body = h('div', {},
     h('div', { class: 'field' }, h('label', { text: 'Sesi meeting' }), sel),
     h('p', { class: 'ev-meta', text: `${data.lines.length} kalimat · ${speakers.length} pembicara: ${speakers.join(', ')}` }),
     h('div', { style: { maxHeight: '50vh', overflow: 'auto', border: '1px solid var(--border-2)', borderRadius: '10px', padding: '12px 14px', display: 'grid', gap: '10px' } },
-      data.lines.map(l => h('div', {}, h('div', { style: { fontSize: '13px', color: 'var(--muted)' } }, h('b', { text: l.name, style: { color: 'var(--text)' } }), ` · ${fmt(l.ts)} · ${l.lang === 'en-US' ? 'EN' : 'ID'}${l.user_id ? '' : ' · tamu'}`), h('div', { text: l.text })))),
+      data.lines.map(l => h('div', {}, h('div', { style: { fontSize: '13px', color: 'var(--muted)' } }, h('b', { text: l.name, style: { color: 'var(--text)' } }), ` · ${fmt(l.ts)} · ${tag(l.lang)}${l.user_id ? '' : ' · tamu'}`), h('div', { text: l.text }),
+        l.tr_text ? h('div', { style: { fontSize: '13.5px', color: '#2c5282', fontStyle: 'italic', borderLeft: '2px solid #9fc5ff', paddingLeft: '8px', marginTop: '3px' }, text: `[${tag(l.tr_lang)}] ${l.tr_text}` }) : null))),
     data.retentionDays ? h('small', { class: 'ev-meta', style: { marginTop: '8px' }, text: `Transkrip otomatis dihapus setelah ${data.retentionDays} hari. Unduh untuk arsip.` }) : null);
   const m = modal({ title: `Transkrip — ${room.name}`, wide: true, body, actions: [
     { label: 'Hapus sesi ini', cls: 'btn-ghost', onClick: async () => {
@@ -197,9 +202,12 @@ async function transcripts(room, pick) {
       try { await api('DELETE', `/api/rooms/${room.id}/transcripts?session=${session}`); toast('Transkrip dihapus', 'success'); } catch (e) { toast(e.message, 'error'); }
     } },
     { label: 'Salin', onClick: () => { copyText(text(), 'Transkrip tersalin'); return false; } },
-    { label: 'Unduh TXT', cls: 'btn-primary', onClick: () => {
-      const a = h('a', { href: URL.createObjectURL(new Blob([text()], { type: 'text/plain;charset=utf-8' })), download: `transkrip-${room.id}-${new Date(session * 1000).toISOString().slice(0, 10)}.txt` });
-      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); return false;
+    { label: 'Unduh TXT', onClick: () => { saveBlob(new Blob([text()], { type: 'text/plain;charset=utf-8' }), base + '.txt'); return false; } },
+    { label: 'Unduh Word', onClick: () => { saveBlob(transcriptDocx(expInfo()), base + '.docx'); return false; } },
+    { label: 'Unduh PDF', cls: 'btn-primary', onClick: async (ev) => {
+      ev.target.disabled = true;
+      try { saveBlob(await transcriptPdf(expInfo()), base + '.pdf'); } catch (e) { toast('Gagal membuat PDF: ' + e.message, 'error'); }
+      ev.target.disabled = false; return false;
     } }] });
 }
 

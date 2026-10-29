@@ -5,7 +5,7 @@ import { store, on, emit, isMod, canPresent, meetApi, allParticipants, nameOf } 
 import { canPublish, schedule, setPresVisible, isPresVisible, setSpeaker } from './media.js';
 import { setHand, react, REACTIONS, startPollModal, openPanel } from './panels.js';
 import { managePresentations, setBlank } from './presentation.js';
-import { BrightnessProcessor, backgroundProcessor, makeBackgrounds } from './processors.js';
+import { BrightnessProcessor, backgroundProcessor, makeBackgrounds, allBackgrounds, customBackgrounds, addCustomBackground, removeCustomBackground } from './processors.js';
 import { startRecording, stopRecording, isRecording } from './recorder.js';
 
 const $ = (s) => document.querySelector(s);
@@ -109,7 +109,8 @@ async function applyProcessors(track) {
   if (applyingBg) return; applyingBg = true;
   try {
     if (prefs.bg !== 'none') {
-      const bg = prefs.bg === 'blur' ? null : makeBackgrounds().find(b => b.id === prefs.bg)?.url;
+      const bg = prefs.bg === 'blur' ? null : allBackgrounds().find(b => b.id === prefs.bg)?.url;
+      if (prefs.bg !== 'blur' && !bg) { prefs.bg = 'none'; savePrefs(); }
       const proc = await backgroundProcessor(prefs.bg === 'blur' ? 'blur' : 'image', bg);
       if (!proc) { toast('Browser ini belum mendukung latar virtual', 'error'); prefs.bg = 'none'; }
       else { await track.setProcessor(proc); return; }
@@ -139,12 +140,26 @@ export async function webcamModal() {
   let bt; bright.addEventListener('input', () => { brightVal.textContent = bright.value; prefs.brightness = +bright.value; clearTimeout(bt); bt = setTimeout(() => applyProcessors(track), 200); });
   const bgs = makeBackgrounds();
   const bgBox = h('div', { class: 'bg-opts' });
+  const fileIn = h('input', { type: 'file', accept: 'image/png,image/jpeg,image/webp', hidden: true, onchange: async () => {
+    const f = fileIn.files[0]; fileIn.value = ''; if (!f) return;
+    try { const item = await addCustomBackground(f); await pick(item.id); toast('Latar ditambahkan (tersimpan di perangkat ini saja)', 'success'); }
+    catch (e) { toast(e.message, 'error'); }
+  } });
   const drawBgs = () => {
     bright.disabled = prefs.bg !== 'none';
+    const tile = (b, custom) => h('div', { class: 'bg-wrap' },
+      h('button', { type: 'button', class: `bg-opt ${prefs.bg === b.id ? 'active' : ''}`, title: b.name, style: { backgroundImage: `url(${b.url})` }, onclick: () => pick(b.id) }),
+      custom ? h('button', { type: 'button', class: 'bg-del', title: 'Hapus latar ini', 'aria-label': `Hapus latar ${b.name}`, onclick: async (e) => {
+        e.stopPropagation(); removeCustomBackground(b.id);
+        if (prefs.bg === b.id) await pick('none'); else drawBgs();
+      } }, icon('x', 12)) : null);
     bgBox.replaceChildren(
       h('button', { type: 'button', class: `bg-opt ${prefs.bg === 'none' ? 'active' : ''}`, title: 'Tanpa latar', onclick: () => pick('none') }, icon('x', 20)),
       h('button', { type: 'button', class: `bg-opt ${prefs.bg === 'blur' ? 'active' : ''}`, title: 'Blur', onclick: () => pick('blur') }, 'Blur'),
-      ...bgs.map(b => h('button', { type: 'button', class: `bg-opt ${prefs.bg === b.id ? 'active' : ''}`, title: b.name, style: { backgroundImage: `url(${b.url})` }, onclick: () => pick(b.id) })));
+      ...bgs.map(b => tile(b, false)),
+      ...customBackgrounds().map(b => tile(b, true)),
+      h('button', { type: 'button', class: 'bg-opt bg-add', title: 'Unggah gambar latar sendiri (PNG/JPG/WebP)', onclick: () => fileIn.click() }, icon('upload', 18), h('span', { text: 'Unggah' })),
+      fileIn);
   };
   const pick = async (id) => { prefs.bg = id; savePrefs(); drawBgs(); await applyProcessors(track); };
   drawBgs();
@@ -158,7 +173,8 @@ export async function webcamModal() {
       h('div', {},
         h('div', { class: 'field' }, h('label', { text: 'Kamera' }), camSel),
         h('div', { class: 'field' }, h('label', { text: 'Kualitas' }), qSel),
-        h('div', { class: 'field' }, h('label', { text: 'Latar virtual' }), bgBox),
+        h('div', { class: 'field' }, h('label', { text: 'Latar virtual' }), bgBox,
+          h('small', { style: { color: '#718096' }, text: 'Gambar unggahan hanya disimpan di perangkat ini (maks. 4) dan tidak dikirim ke server.' })),
         h('div', { class: 'field' }, h('label', {}, 'Kecerahan ', brightVal), bright,
           h('small', { style: { color: '#718096' }, text: 'Kecerahan tidak tersedia saat latar virtual aktif.' })),
         h('label', { class: 'check', style: { fontSize: '13.5px' } }, h('input', { type: 'checkbox', checked: store.mirror !== false, onchange: (e) => { store.mirror = e.target.checked; schedule(); } }), 'Cerminkan video saya (hanya tampilan saya)'))),
@@ -307,7 +323,6 @@ export function updateControls() {
   $('#rec-label').textContent = (isRecording() || (serverRec && recOn && isMod())) ? 'Hentikan rekam' : recOn ? 'Sedang direkam' : 'Mulai rekam';
   rb.disabled = !isMod();
   rb.hidden = store.meta.recMode === 'off' || (!isMod() && !recOn);
-  $('#rec-banner').hidden = !recOn;
   document.getElementById('app').classList.toggle('is-mod', isMod());
   document.getElementById('app').classList.toggle('can-present', canPresent());
 }
@@ -331,7 +346,7 @@ export function initControls(room) {
   $('#react-menu').append(...REACTIONS.map(e => h('button', { type: 'button', onclick: () => { react(e); $('#react-menu').parentElement.classList.remove('open'); } }, e)));
   $('#rec-btn').addEventListener('click', toggleRecording);
   $('#conn-btn').addEventListener('click', connModal);
-  $('#toggle-nav').addEventListener('click', () => document.getElementById('app').classList.toggle('nav-hidden'));
+  // Tombol menu ditangani di panels.js (membuka/menutup menu kiri + panel sekaligus)
   $('#m-full').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}));
   $('#m-settings').addEventListener('click', settingsModal);
   $('#a-settings').addEventListener('click', settingsModal);

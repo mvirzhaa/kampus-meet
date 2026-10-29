@@ -190,7 +190,12 @@ for (const sql of [
   "ALTER TABLE events ADD COLUMN signer_name TEXT NOT NULL DEFAULT ''",
   "ALTER TABLE events ADD COLUMN signer_title TEXT NOT NULL DEFAULT ''",
   'ALTER TABLE events ADD COLUMN sponsors_enabled INTEGER NOT NULL DEFAULT 0',
+  // Transkrip: id kalimat di klien (identity + cid unik per sesi) dan terjemahannya (untuk rekaman & ekspor)
+  'ALTER TABLE transcripts ADD COLUMN cid TEXT',
+  'ALTER TABLE transcripts ADD COLUMN tr_lang TEXT',
+  'ALTER TABLE transcripts ADD COLUMN tr_text TEXT',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
+db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
 
 const cache = new Map();
 /** Prepared statement yang di-cache. */
