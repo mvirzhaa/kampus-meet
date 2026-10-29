@@ -194,7 +194,7 @@ async function transcripts(room, pick) {
     h('p', { class: 'ev-meta', text: `${data.lines.length} kalimat · ${speakers.length} pembicara: ${speakers.join(', ')}` }),
     h('div', { style: { maxHeight: '50vh', overflow: 'auto', border: '1px solid var(--border-2)', borderRadius: '10px', padding: '12px 14px', display: 'grid', gap: '10px' } },
       data.lines.map(l => h('div', {}, h('div', { style: { fontSize: '13px', color: 'var(--muted)' } }, h('b', { text: l.name, style: { color: 'var(--text)' } }), ` · ${fmt(l.ts)} · ${tag(l.lang)}${l.user_id ? '' : ' · tamu'}`), h('div', { text: l.text }),
-        l.tr_text ? h('div', { style: { fontSize: '13.5px', color: '#2c5282', fontStyle: 'italic', borderLeft: '2px solid #9fc5ff', paddingLeft: '8px', marginTop: '3px' }, text: `[${tag(l.tr_lang)}] ${l.tr_text}` }) : null))),
+        l.tr_text ? h('div', { style: { fontSize: '13.5px', color: '#047857', fontStyle: 'italic', borderLeft: '2px solid #6ee7b7', paddingLeft: '8px', marginTop: '3px' }, text: `[${tag(l.tr_lang)}] ${l.tr_text}` }) : null))),
     data.retentionDays ? h('small', { class: 'ev-meta', style: { marginTop: '8px' }, text: `Transkrip otomatis dihapus setelah ${data.retentionDays} hari. Unduh untuk arsip.` }) : null);
   const m = modal({ title: `Transkrip — ${room.name}`, wide: true, body, actions: [
     { label: 'Hapus sesi ini', cls: 'btn-ghost', onClick: async () => {

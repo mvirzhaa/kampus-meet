@@ -21,7 +21,7 @@ try {
     ? h('div', { class: 'cert-top' }, logos(sp('tl'), 'tl') || h('span'), logos(sp('tr'), 'tr') || h('span')) : null;
   $('#cert').replaceChildren(h('div', { class: 'cert-inner' + (top ? ' has-top' : '') },
     top,
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 800, color: '#4a78bd', fontSize: 'clamp(13px,1.8vw,19px)' } }, logoMark(34), `${c.app} · ${c.campus}`),
+    h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 800, color: '#047857', fontSize: 'clamp(13px,1.8vw,19px)' } }, logoMark(34), `${c.app} · ${c.campus}`),
     h('h1', { text: 'SERTIFIKAT' }),
     h('small', { class: 'label', text: 'Diberikan kepada' }),
     h('div', { class: 'name', text: c.name }),
