@@ -21,6 +21,8 @@ const QUALITY = {
 };
 const prefs = (() => { try { return JSON.parse(localStorage.getItem('km:prefs') || '{}'); } catch { return {}; } })();
 const savePrefs = () => { try { localStorage.setItem('km:prefs', JSON.stringify(prefs)); } catch { /* abaikan */ } };
+// Sekali saja: kembalikan mikrofon & speaker ke perangkat "Default" sistem (pilihan baru setelah ini tetap diingat)
+if (!prefs.devDefaultV2) { delete prefs.mic; delete prefs.speaker; prefs.devDefaultV2 = 1; savePrefs(); }
 prefs.quality ??= 'medium'; prefs.bg ??= 'none'; prefs.brightness ??= 0;
 
 // ==================== Audio ====================
@@ -37,10 +39,14 @@ function levelMeter(track, barEl) {
   return () => { cancelAnimationFrame(raf); if (ctx && ctx.state !== 'closed') ctx.close().catch(() => {}); };
 }
 
+/** Pilihan perangkat. Bila pengguna belum pernah memilih, yang terpilih adalah perangkat "Default" sistem. */
 async function deviceOptions(kind, selected) {
   const devs = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === kind);
-  return devs.map((d, i) => h('option', { value: d.deviceId, selected: d.deviceId === selected, text: d.label || `${kind === 'audioinput' ? 'Mikrofon' : kind === 'videoinput' ? 'Kamera' : 'Speaker'} ${i + 1}` }));
+  const sel = devs.some(d => d.deviceId === selected) ? selected : (devs.find(d => d.deviceId === 'default')?.deviceId ?? devs[0]?.deviceId);
+  return devs.map((d, i) => h('option', { value: d.deviceId, selected: d.deviceId === sel, text: d.label || `${kind === 'audioinput' ? 'Mikrofon' : kind === 'videoinput' ? 'Kamera' : 'Speaker'} ${i + 1}` }));
 }
+/** Mikrofon yang dipakai: pilihan pengguna, atau perangkat "Default" sistem. */
+const micDevice = () => prefs.mic || 'default';
 
 export function audioModal() {
   const micAllowed = canPublish('microphone');
@@ -62,11 +68,11 @@ async function joinListenOnly() {
 
 async function micCheckModal() {
   let track;
-  try { track = await createLocalAudioTrack({ deviceId: prefs.mic || undefined, echoCancellation: true, noiseSuppression: true, autoGainControl: true }); }
+  try { track = await createLocalAudioTrack({ deviceId: micDevice(), echoCancellation: true, noiseSuppression: true, autoGainControl: true }); }
   catch (e) { toast('Tidak bisa mengakses mikrofon. Periksa izin browser. ' + (e.message || ''), 'error', 6000); return joinListenOnly(); }
   const bar = h('i'); let stopMeter = levelMeter(track, bar);
-  const micSel = h('select', { onchange: async () => { prefs.mic = micSel.value; savePrefs(); await track.restartTrack({ deviceId: micSel.value }); stopMeter(); stopMeter = levelMeter(track, bar); } }, await deviceOptions('audioinput', track.mediaStreamTrack.getSettings().deviceId));
-  const spkOpts = await deviceOptions('audiooutput', store.speakerId);
+  const micSel = h('select', { onchange: async () => { prefs.mic = micSel.value; savePrefs(); await track.restartTrack({ deviceId: micSel.value }); stopMeter(); stopMeter = levelMeter(track, bar); } }, await deviceOptions('audioinput', micDevice()));
+  const spkOpts = await deviceOptions('audiooutput', store.speakerId || prefs.speaker || 'default');
   const spkSel = spkOpts.length ? h('select', { onchange: () => { setSpeaker(spkSel.value); prefs.speaker = spkSel.value; savePrefs(); } }, spkOpts) : null;
   let joined = false;
   modal({
@@ -86,6 +92,40 @@ async function micCheckModal() {
       updateControls(); emit('participants');
     } }],
   });
+}
+
+// ---------- Pindah ruang (breakout): pulihkan audio & kamera tanpa bertanya lagi ----------
+const resumeKey = () => `km:resume:${store.code}`;
+/** Simpan keadaan audio/kamera sebelum halaman dimuat ulang untuk pindah ruang. */
+export function saveResume() {
+  const mp = micPub(); const cp = camPub();
+  try { sessionStorage.setItem(resumeKey(), JSON.stringify({ audio: store.audioMode, muted: !mp || mp.isMuted, cam: !!cp && !cp.isMuted, at: Date.now() })); } catch { /* abaikan */ }
+}
+/** Dipanggil setelah tersambung. Mengembalikan true bila audio dipulihkan otomatis (dialog audio tidak perlu tampil). */
+export function resumeAfterSwitch() {
+  let r = null;
+  try { r = JSON.parse(sessionStorage.getItem(resumeKey()) || 'null'); sessionStorage.removeItem(resumeKey()); } catch { /* abaikan */ }
+  if (!r || Date.now() - r.at > 120000 || !r.audio) return false;
+  (async () => {
+    if (r.audio === 'mic' && canPublish('microphone')) {
+      try {
+        const track = await createLocalAudioTrack({ deviceId: micDevice(), echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+        await store.room.startAudio().catch(() => {});
+        const pub = await lp().publishTrack(track, { source: Track.Source.Microphone, dtx: true, red: true });
+        store.audioMode = 'mic';
+        if (r.muted) await pub.mute();
+      } catch { return audioModal(); }
+    } else await joinListenOnly();
+    if (r.cam && canPublish('camera')) {
+      try {
+        const track = await createLocalVideoTrack({ deviceId: prefs.cam || undefined, resolution: QUALITY[prefs.quality].preset.resolution });
+        if (prefs.bg !== 'none' || prefs.brightness) await applyProcessors(track);
+        await lp().publishTrack(track, { source: Track.Source.Camera, simulcast: true, videoEncoding: QUALITY[prefs.quality].preset.encoding, videoSimulcastLayers: [VideoPresets.h90, VideoPresets.h180] });
+      } catch { toast('Kamera tidak dapat dinyalakan otomatis. Klik ikon kamera untuk menyalakannya.', 'info'); }
+    }
+    updateControls(); emit('participants'); emit('local-tracks'); schedule();
+  })();
+  return true;
 }
 
 async function leaveAudio() {
@@ -242,8 +282,8 @@ store.onRecordingStopped = () => { meetApi('POST', '/mod/recording', { on: false
 
 // ==================== Pengaturan & info ====================
 async function settingsModal() {
-  const micOpts = await deviceOptions('audioinput', micPub()?.track?.mediaStreamTrack.getSettings().deviceId || prefs.mic);
-  const spkOpts = await deviceOptions('audiooutput', store.speakerId);
+  const micOpts = await deviceOptions('audioinput', micDevice());
+  const spkOpts = await deviceOptions('audiooutput', store.speakerId || prefs.speaker || 'default');
   const micSel = h('select', {}, micOpts); const spkSel = spkOpts.length ? h('select', {}, spkOpts) : null;
   const saver = h('input', { type: 'checkbox', checked: store.dataSaver });
   const sounds = h('input', { type: 'checkbox', checked: store.sounds });

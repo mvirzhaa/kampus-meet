@@ -23,9 +23,13 @@ async function load() {
   else if (e.joinLink) action = h('a', { class: 'btn btn-violet', href: e.joinLink }, icon('door', 18), 'Gabung ke Event');
   else action = h('span', { class: 'pill green' }, icon('clock', 14), `Room dibuka ${fmtDate(e.opensAt)}, pukul ${fmtTime(e.opensAt)}`);
 
-  const ownerInfo = e.isOwner ? h('div', { class: 'alert info' }, icon('link', 18),
-    h('span', {}, 'Bagikan link halaman ini ke peserta', e.password ? ' beserta password ' : ' (tanpa password)', e.password ? h('b', { text: e.password, style: { letterSpacing: '.15em' } }) : null, '.'),
-    h('button', { class: 'btn btn-ghost btn-sm', style: { marginLeft: 'auto' }, onclick: () => copyText(location.href, 'Link event tersalin') }, icon('copy', 15), 'Salin link')) : null;
+  // Link langsung ke ruang meeting (peserta yang belum login/masuk diarahkan ke halaman gabung lebih dulu)
+  const meetLink = e.roomId ? `${location.origin}/r/${e.roomId}` : location.href;
+  const ownerInfo = e.isOwner ? h('div', { class: 'alert info share-link' }, icon('link', 18),
+    h('div', { class: 'share-txt' },
+      h('span', {}, 'Bagikan link meeting ini ke peserta', e.password ? ' beserta password ' : ' (tanpa password)', e.password ? h('b', { text: e.password, style: { letterSpacing: '.15em' } }) : null, ':'),
+      h('code', { text: meetLink })),
+    h('button', { class: 'btn btn-ghost btn-sm', style: { marginLeft: 'auto' }, onclick: () => copyText(meetLink, 'Link meeting tersalin') }, icon('copy', 15), 'Salin link')) : null;
 
   $('#ev').replaceChildren(
     h('div', { class: 'section-card', style: { padding: 0, overflow: 'hidden' } },

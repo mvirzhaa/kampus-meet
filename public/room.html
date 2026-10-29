@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
-<title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/assets/site-E22LT5K6.css">
-<link rel="stylesheet" href="/assets/roomcss-5NXCQMPV.css">
+<title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
+<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-GOKFVROM.css">
+<link rel="stylesheet" href="/assets/roomcss-NJDEO7YF.css">
 </head>
 <body class="room-body">
 <div id="app" class="room" data-panel="chat">
@@ -106,12 +106,14 @@
             <button id="m-settings"><i data-i="settings" data-s="16"></i>Pengaturan</button>
             <button id="m-info"><i data-i="info" data-s="16"></i>Info room</button>
             <button id="m-shortcuts"><i data-i="keyboard" data-s="16"></i>Pintasan keyboard</button>
+            <button id="m-breakout" class="mod-only"><i data-i="users" data-s="16"></i>Ruang kelompok (breakout)</button>
             <button id="m-end" class="mod-only danger"><i data-i="phone-off" data-s="16"></i>Akhiri meeting untuk semua</button>
             <button id="m-leave"><i data-i="log-out" data-s="16"></i>Keluar</button>
           </div></div>
       </div>
     </header>
-
+    <div class="bo-bar" id="bo-bar" hidden role="status" aria-live="polite"></div>
+    <div class="bo-ann" id="bo-ann" hidden role="alert"></div>
 
     <div class="cams" id="cams" hidden>
       <button class="cam-page prev" id="cam-prev" aria-label="Kamera sebelumnya" hidden><i data-i="chevron-left"></i></button>
@@ -212,6 +214,6 @@
 
 <div id="overlay" class="overlay"><div class="ov-box"><div class="spinner"></div><p id="ov-text">Menghubungkan ke meeting…</p></div></div>
 <div id="audio-sink" hidden></div>
-<script type="module" src="/assets/room-PJHH4O62.js"></script>
+<script type="module" src="/assets/room-PWGQ4UL5.js"></script>
 </body>
 </html>

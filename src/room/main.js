@@ -6,7 +6,8 @@ import { initBus } from './bus.js';
 import { initMedia } from './media.js';
 import { initPanels, requestSync, sysChat } from './panels.js';
 import { initPresentation } from './presentation.js';
-import { initControls, audioModal } from './controls.js';
+import { initControls, audioModal, resumeAfterSwitch } from './controls.js';
+import { initBreakout, goRoom } from './breakout.js';
 import { initTranscript } from './transcript.js';
 
 const $ = (s) => document.querySelector(s);
@@ -79,6 +80,9 @@ room.on(RoomEvent.RoomMetadataChanged, applyMeta)
     if (REC) { console.log('END_RECORDING'); return; }
     const back = { label: 'Masuk kembali', cls: 'btn-primary', href: `/j/${code}` };
     const home = { label: 'Ke beranda', href: '/' };
+    if (store.switching) return;
+    // Ruang kelompok ditutup moderator: kembali otomatis ke ruang utama
+    if (store.meta.bo && reason === DisconnectReason.ROOM_DELETED) { goRoom(0, 'Ruang kelompok ditutup. Kembali ke ruang utama…'); return; }
     if (reason === DisconnectReason.PARTICIPANT_REMOVED) { sessionStorage.removeItem(KEY); overlay('Anda dikeluarkan', 'Moderator telah mengeluarkan Anda dari meeting ini.', [home]); }
     else if (reason === DisconnectReason.ROOM_DELETED) { sessionStorage.removeItem(KEY); overlay('Meeting telah berakhir', 'Moderator mengakhiri meeting ini. Terima kasih telah bergabung!', [home]); }
     else if (reason === DisconnectReason.DUPLICATE_IDENTITY) overlay('Terhubung di tempat lain', 'Sesi ini dibuka di tab/perangkat lain.', [back, home]);
@@ -87,7 +91,7 @@ room.on(RoomEvent.RoomMetadataChanged, applyMeta)
   });
 
 addEventListener('pagehide', () => {
-  if (REC) return;
+  if (REC || store.switching) return;   // pindah ruang kelompok bukan keluar dari meeting
   try { navigator.sendBeacon(`/api/meet/${code}/leave`, new Blob([JSON.stringify({ seat: store.seat })], { type: 'application/json' })); } catch { /* abaikan */ }
 });
 
@@ -145,9 +149,10 @@ else try {
   initPresentation();
   initControls(room);
   initTranscript();
+  initBreakout();
   hideOverlay();
   requestSync();
-  audioModal();
+  if (!resumeAfterSwitch()) audioModal();
 } catch (e) {
   console.error(e);
   const expired = e?.status === 401 || e?.status === 403 || /token|401|unauthorized|expired/i.test(String(e?.message));

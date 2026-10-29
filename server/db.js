@@ -194,6 +194,9 @@ for (const sql of [
   'ALTER TABLE transcripts ADD COLUMN cid TEXT',
   'ALTER TABLE transcripts ADD COLUMN tr_lang TEXT',
   'ALTER TABLE transcripts ADD COLUMN tr_text TEXT',
+  // Breakout room: lokasi kursi saat ini (0 = ruang utama) dan asal kalimat transkrip
+  'ALTER TABLE seats ADD COLUMN bo INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE transcripts ADD COLUMN bo INTEGER NOT NULL DEFAULT 0',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
 

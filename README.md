@@ -21,6 +21,8 @@ Nama aplikasi, nama kampus, dan domain email bisa diganti lewat `.env` (`APP_NAM
 - **Whiteboard**: pointer, geser, pena, penghapus, kotak, lingkaran, garis, panah, teks, warna, ketebalan, urungkan, hapus semua; mode *whiteboard bersama*.
 - **Chat publik** (tautan aman, simpan/salin/hapus), **chat privat**, **catatan bersama**, **polling** (Ya/Tidak, Benar/Salah, A–D, kustom) dengan publikasi hasil.
 - Daftar pengguna: indikator moderator/presenter/mikrofon/kamera/bicara/angkat tangan; menu per peserta (chat privat, jadikan presenter/moderator, matikan mikrofon, keluarkan, keluarkan & blokir).
+- **Breakout room**: moderator membagi peserta ke beberapa ruang kecil, berkeliling antar ruang,
+  dan menerima permintaan bantuan dari dalam ruang. Pembagian bertahan bila server di-restart.
 - Menu moderator: matikan mikrofon semua (atau kecuali presenter), **Kunci peserta (lock viewers)** — kamera, melihat kamera lain, mikrofon, chat publik, chat privat, catatan, daftar pengguna — turunkan semua tangan, simpan daftar nama.
 - Berbagi layar (presenter/moderator), angkat tangan, reaksi emoji, status koneksi, timer, layar penuh, pintasan keyboard, akhiri meeting untuk semua.
 - **Transkripsi otomatis (Bahasa Indonesia / English)** dengan nama pembicara: teks langsung (CC) di layar, panel Transkrip, dan notulen tersimpan per sesi di Dasbor (lihat, salin, unduh TXT, hapus).
@@ -276,5 +278,5 @@ deploy/        docker-compose.yml, Caddyfile, *.template.yaml (sumber konfiguras
 - Dokumen Word/PowerPoint perlu disimpan sebagai **PDF** dulu (konversi Office di server sengaja tidak dipakai karena berat).
 - Latar virtual memakai model MediaPipe yang diunduh browser dari Google; untuk host sendiri jalankan `scripts/fetch-model.sh` dan set `SEGMENTER_MODEL_URL`.
 - Rekaman tersimpan di komputer moderator (Chrome/Edge). Bila butuh rekaman otomatis di server, tambahkan LiveKit Egress (memerlukan server terpisah karena berat).
-- Belum ada breakout room dan SSO kampus — keduanya bisa ditambahkan kemudian.
+- Belum ada SSO kampus (integrasi E-Portal) — bisa ditambahkan kemudian.
 - Data tersimpan di `data/` (SQLite + file presentasi). Cadangkan folder ini secara berkala.

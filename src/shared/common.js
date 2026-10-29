@@ -102,10 +102,9 @@ export function formData(form) {
 }
 
 // ---------- Navbar & footer bersama ----------
+/** Ikon logo UIKA Meet (gelembung percakapan + dua orang membentuk huruf "U"). */
 export function logoMark(size = 40) {
-  const wrap = h('span', { class: 'logo-mark', style: { width: size + 'px', height: size + 'px' } });
-  wrap.append(icon('video', Math.round(size * 0.5)));
-  return wrap;
+  return h('img', { class: 'logo-mark-img', src: '/img/uika-meet-mark.svg', width: size, height: size, alt: '', decoding: 'async' });
 }
 
 export async function initSite() {

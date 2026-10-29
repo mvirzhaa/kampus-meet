@@ -465,12 +465,13 @@ function exportInfo(rows) {
   return { app: store.meta.app || me?.app?.name || 'Meeting', campus: store.meta.campus || me?.app?.campus || '', title: store.meta.name || store.code, roomId: store.code, lines: rows };
 }
 async function exportAs(kind) {
+  toast('Menyiapkan file transkrip…', 'info', 2000);
   const rows = await exportRows();
-  if (!rows.length) return toast('Belum ada transkrip untuk diekspor.', 'error');
+  if (!rows.length) return toast(store.meta.transcribe ? 'Belum ada ucapan yang tercatat untuk diunduh.' : 'Belum ada transkrip. Mulai transkripsi terlebih dahulu, lalu unduh setelah ada ucapan yang tercatat.', 'error', 6000);
   const base = `transkrip-${store.code}-${new Date().toISOString().slice(0, 10)}`;
   try {
     if (kind === 'pdf') saveBlob(await transcriptPdf(exportInfo(rows)), base + '.pdf');
-    else if (kind === 'docx') saveBlob(transcriptDocx(exportInfo(rows)), base + '.docx');
+    else if (kind === 'docx') saveBlob(await transcriptDocx(exportInfo(rows)), base + '.docx');
     else {
       const head = `Transkrip otomatis — ${store.meta.name}\nRoom: ${store.code}\nDiunduh: ${new Date().toLocaleString('id-ID')}\n\n`;
       const body = rows.map(r => `[${fmtT(r.ts * 1000)}] ${r.name} (${LANGS[r.lang] || 'ID'}): ${r.text}` + (r.trText ? `\n           [${LANGS[r.trLang]}] ${r.trText}` : '')).join('\n');
@@ -549,10 +550,27 @@ export function initTranscript() {
     try { await meetApi('POST', '/mod/transcribe', { on: turnOn }); toast(turnOn ? 'Transkripsi dimulai' : 'Transkripsi dihentikan', 'success'); }
     catch (e) { toast(e.message, 'error'); }
   });
-  const dlMenu = $('#tr-dl-menu');
-  $('#tr-dl').addEventListener('click', (e) => { e.stopPropagation(); dlMenu.hidden = !dlMenu.hidden; });
-  for (const b of dlMenu.querySelectorAll('[data-fmt]')) b.addEventListener('click', () => { dlMenu.hidden = true; exportAs(b.dataset.fmt); });
-  document.addEventListener('click', (e) => { if (!dlMenu.hidden && !e.target.closest('#tr-dl-menu')) dlMenu.hidden = true; });
+  // Menu unduh dipasang di <body> dengan posisi tetap: panel samping memakai overflow:hidden sehingga
+  // menu yang berada di dalamnya akan terpotong dan tidak bisa diklik.
+  const dlMenu = $('#tr-dl-menu'); const dlBtn = $('#tr-dl');
+  document.body.append(dlMenu);
+  const placeMenu = () => {
+    const r = dlBtn.getBoundingClientRect();
+    dlMenu.style.top = `${Math.round(r.bottom + 6)}px`;
+    dlMenu.style.left = `${Math.round(Math.max(8, Math.min(innerWidth - dlMenu.offsetWidth - 8, r.right - dlMenu.offsetWidth)))}px`;
+  };
+  const closeMenu = () => { dlMenu.hidden = true; dlBtn.setAttribute('aria-expanded', 'false'); };
+  dlBtn.setAttribute('aria-expanded', 'false');
+  dlBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!dlMenu.hidden) return closeMenu();
+    dlMenu.hidden = false; dlBtn.setAttribute('aria-expanded', 'true'); placeMenu();
+    dlMenu.querySelector('button')?.focus();
+  });
+  for (const b of dlMenu.querySelectorAll('[data-fmt]')) b.addEventListener('click', () => { closeMenu(); exportAs(b.dataset.fmt); });
+  document.addEventListener('click', (e) => { if (!dlMenu.hidden && !e.target.closest('#tr-dl-menu')) closeMenu(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !dlMenu.hidden) { closeMenu(); dlBtn.focus(); } });
+  addEventListener('resize', () => { if (!dlMenu.hidden) placeMenu(); });
   $('#btn-cc').addEventListener('click', () => { ccOn = !ccOn; prefs.cc = ccOn; savePrefs(); renderCaptions(); renderStatus(); });
   document.addEventListener('visibilitychange', sync);
   document.addEventListener('pointerdown', prepOnGesture, { capture: true });

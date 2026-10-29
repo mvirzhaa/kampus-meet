@@ -24,7 +24,7 @@ const entryPoints = {
 
 const result = await esbuild.build({
   entryPoints, outdir: out, bundle: true, splitting: true, format: 'esm', minify: true, sourcemap: false,
-  entryNames: '[name]-[hash]', chunkNames: 'c-[hash]', assetNames: '[name]-[hash]',
+  entryNames: '[name]-[hash]', chunkNames: 'c-[hash]', assetNames: '[name]-[hash]', external: ['/fonts/*', '/img/*'],
   target: ['es2022', 'chrome100', 'firefox100', 'safari15.4'], metafile: true, legalComments: 'none',
   logLevel: 'warning', define: { 'process.env.NODE_ENV': '"production"' },
 });
@@ -42,7 +42,7 @@ const parts = { NAV: partial('nav.html'), FOOTER: partial('footer.html'), HERO: 
 for (const f of fs.readdirSync(path.join(src, 'html')).filter(f => f.endsWith('.html'))) {
   let html = fs.readFileSync(path.join(src, 'html', f), 'utf8');
   html = html.replace(/<!--(NAV|FOOTER|HERO)-->/g, (_, k) => parts[k]);
-  html = html.replace(/<!--CSS:(\w+)-->/g, (_, n) => { if (!built[n]) throw new Error('CSS tidak ada: ' + n); return `<link rel="stylesheet" href="${built[n]}">`; });
+  html = html.replace(/<!--CSS:(\w+)-->/g, (_, n) => { if (!built[n]) throw new Error('CSS tidak ada: ' + n); return (n === 'site' ? '<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin>' : '') + `<link rel="stylesheet" href="${built[n]}">`; });
   html = html.replace(/<!--JS:(\w+)-->/g, (_, n) => { if (!built[n]) throw new Error('JS tidak ada: ' + n); return `<script type="module" src="${built[n]}"></script>`; });
   fs.writeFileSync(path.join(pub, f), html);
 }
@@ -56,6 +56,14 @@ fs.cpSync(r('node_modules/pdfjs-dist/cmaps'), path.join(vendor, 'cmaps'), { recu
 const mpWasm = r('node_modules/@mediapipe/tasks-vision/wasm');
 fs.cpSync(mpWasm, path.join(vendor, 'mediapipe', 'wasm'), { recursive: true });
 fs.copyFileSync(path.join(src, 'html', 'partials', 'hero-art.svg'), path.join(pub, 'hero.svg'));
+// Huruf Plus Jakarta Sans (SIL OFL) di-host sendiri: tanpa permintaan ke Google Fonts
+fs.mkdirSync(path.join(pub, 'fonts'), { recursive: true });
+for (const sub of ['latin', 'latin-ext']) fs.copyFileSync(r(`node_modules/@fontsource-variable/plus-jakarta-sans/files/plus-jakarta-sans-${sub}-wght-normal.woff2`), path.join(pub, 'fonts', `pjs-${sub}.woff2`));
+// Identitas (favicon, ikon aplikasi) ke akar public/
+for (const f of fs.readdirSync(path.join(src, 'brand'))) fs.copyFileSync(path.join(src, 'brand', f), path.join(pub, f));
+// Gambar statis (mis. foto hero beranda)
+fs.mkdirSync(path.join(pub, 'img'), { recursive: true });
+for (const f of fs.readdirSync(path.join(src, 'img'))) fs.copyFileSync(path.join(src, 'img', f), path.join(pub, 'img', f));
 
 // ---------- Pra-kompresi ----------
 let count = 0;

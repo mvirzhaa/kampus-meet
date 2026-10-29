@@ -203,7 +203,7 @@ async function transcripts(room, pick) {
     } },
     { label: 'Salin', onClick: () => { copyText(text(), 'Transkrip tersalin'); return false; } },
     { label: 'Unduh TXT', onClick: () => { saveBlob(new Blob([text()], { type: 'text/plain;charset=utf-8' }), base + '.txt'); return false; } },
-    { label: 'Unduh Word', onClick: () => { saveBlob(transcriptDocx(expInfo()), base + '.docx'); return false; } },
+    { label: 'Unduh Word', onClick: async () => { try { saveBlob(await transcriptDocx(expInfo()), base + '.docx'); } catch (e) { toast('Gagal membuat Word: ' + e.message, 'error'); } return false; } },
     { label: 'Unduh PDF', cls: 'btn-primary', onClick: async (ev) => {
       ev.target.disabled = true;
       try { saveBlob(await transcriptPdf(expInfo()), base + '.pdf'); } catch (e) { toast('Gagal membuat PDF: ' + e.message, 'error'); }
@@ -348,12 +348,13 @@ async function eventForm(ev) {
 
 /** Link & password untuk dibagikan ke peserta. */
 function eventInvite(e) {
-  const link = `${location.origin}/event/${e.slug}`;
+  // Link langsung ke ruang meeting; yang belum login/masuk otomatis diarahkan ke halaman gabung (password ditanya di sana)
+  const link = `${location.origin}/r/${e.roomId}`;
   const text = `Undangan: ${e.title}\n${fmtDate(e.startsAt)}, ${fmtTime(e.startsAt)}–${fmtTime(e.endsAt)}\n\nGabung lewat: ${link}${e.password ? `\nPassword event: ${e.password}` : ''}\n\nSilakan login dengan akun kampus. Room dibuka 30 menit sebelum acara dimulai.`;
   const row = (label, val) => h('div', { class: 'link-row' }, h('label', { text: label }),
     h('div', { class: 'link-box' }, h('code', { text: val }), h('button', { class: 'icon-btn', type: 'button', title: 'Salin', onclick: () => copyText(val) }, icon('copy', 18))));
   modal({ title: 'Bagikan event', body: h('div', { class: 'links' },
-    row('Link event untuk peserta', link),
+    row('Link meeting untuk peserta', link),
     e.password ? row('Password event', e.password) : h('p', { class: 'ev-meta', text: 'Event ini tanpa password: siapa pun yang login dan memiliki link dapat bergabung.' }),
     h('div', { class: 'note-ok' }, icon('info', 18), h('div', {}, h('strong', { text: 'Tanpa pendaftaran' }),
       h('p', { text: 'Peserta cukup login lalu membuka link. Kehadiran dan sertifikat tercatat otomatis saat mereka bergabung.' })))),

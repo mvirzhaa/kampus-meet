@@ -27,11 +27,82 @@ function loadRoom(code) {
 }
 function getState(room) {
   let s = {}; try { s = JSON.parse(room.state || '{}'); } catch { /* default */ }
-  return { locks: { ...DEFAULT_LOCKS, ...(s.locks || {}) }, presenter: s.presenter || null, pres: s.pres || null, recording: !!s.recording, multiWb: !!s.multiWb, startedAt: s.startedAt || null, transcribe: !!s.transcribe, spotlight: s.spotlight || null };
+  return { locks: { ...DEFAULT_LOCKS, ...(s.locks || {}) }, presenter: s.presenter || null, pres: s.pres || null, recording: !!s.recording, multiWb: !!s.multiWb, startedAt: s.startedAt || null, transcribe: !!s.transcribe, spotlight: s.spotlight || null, breakout: s.breakout || null };
 }
 function publicMeta(room, st) {
-  return JSON.stringify({ ...st, name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode, trServer: !!config.translate.url, app: config.appName, campus: config.campusName });
+  return JSON.stringify({ ...st, breakout: boPublic(room, st.breakout), name: room.name, welcome: room.welcome, muteOnJoin: !!room.mute_on_join, recMode: config.recording.mode, trServer: !!config.translate.url, app: config.appName, campus: config.campusName });
 }
+// ---------- Breakout room (ruang kelompok) ----------
+// Setiap ruang kelompok = room LiveKit terpisah bernama "<id room>__b<n>". Kursi, presensi, sertifikat,
+// dan transkrip tetap tercatat pada room utama, jadi kehadiran tidak terputus saat peserta pindah ruang.
+const BO_SEP = '__b';
+const boName = (roomId, n) => `${roomId}${BO_SEP}${n}`;
+const mainIdOf = (lkName) => String(lkName || '').split(BO_SEP)[0];
+const boNumOf = (lkName) => { const i = String(lkName || '').indexOf(BO_SEP); return i < 0 ? 0 : parseInt(lkName.slice(i + BO_SEP.length), 10) || 0; };
+const boOpen = (bo) => !!bo && (bo.active || (bo.closingAt && bo.closingAt > now()));
+const boValid = (bo, n) => boOpen(bo) && Number.isInteger(n) && n >= 1 && n <= bo.rooms.length;
+/** Ringkasan breakout untuk metadata room utama: penugasan per identitas yang sedang punya kursi (bukan ban key). */
+function boPublic(room, bo) {
+  if (!bo) return null;
+  const assign = {};
+  if (bo.assign && Object.keys(bo.assign).length) {
+    for (const r of q('SELECT identity, ban_key FROM seats WHERE room_id = ? AND exp > ?').all(room.id, now())) {
+      const n = bo.assign[r.ban_key]; if (n) assign[r.identity] = n;
+    }
+  }
+  return { id: bo.id, active: !!bo.active, rooms: bo.rooms, endsAt: bo.endsAt || null, closingAt: bo.closingAt || null, allowChoose: !!bo.allowChoose, assign };
+}
+/** Metadata room LiveKit milik satu ruang kelompok. */
+function boMeta(room, st, n) {
+  const bo = st.breakout; const r = bo.rooms[n - 1];
+  return JSON.stringify({
+    locks: { ...DEFAULT_LOCKS }, presenter: null, pres: null, recording: false, multiWb: true, spotlight: null,
+    startedAt: st.startedAt || null, transcribe: !!st.transcribe,
+    name: `${r.name} · ${room.name}`, welcome: '', muteOnJoin: false, recMode: 'off',
+    trServer: !!config.translate.url, app: config.appName, campus: config.campusName,
+    bo: { n, name: r.name, rooms: bo.rooms.length, endsAt: bo.endsAt || null, closingAt: bo.closingAt || null, main: room.id, mainName: room.name },
+  });
+}
+async function pushBoMeta(room, st) {
+  if (!st.breakout) return;
+  await Promise.allSettled(st.breakout.rooms.map((_, i) => lk.updateRoomMetadata(boName(room.id, i + 1), boMeta(room, st, i + 1))));
+}
+const boTimers = new Map(); // id room -> timeout
+const helpAt = new Map();   // identity -> waktu permintaan bantuan terakhir (jeda 30 detik)
+function scheduleBo(roomId) {
+  clearTimeout(boTimers.get(roomId)); boTimers.delete(roomId);
+  const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId); if (!room) return;
+  const bo = getState(room).breakout; if (!bo) return;
+  const at = bo.active ? bo.endsAt : bo.closingAt;
+  if (!at) return;
+  const ms = Math.max(0, (at - now()) * 1000);
+  boTimers.set(roomId, setTimeout(() => (bo.active ? closeBreakout(roomId) : finishBreakout(roomId)).catch(e => console.warn('[breakout]', e.message)), Math.min(ms, 2 ** 31 - 1)));
+}
+/** Tutup semua ruang kelompok: peserta mendapat hitung mundur 60 detik lalu kembali ke ruang utama. */
+async function closeBreakout(roomId, delay = 60) {
+  const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId); if (!room) return;
+  const st = getState(room); if (!st.breakout?.active) return;
+  st.breakout.active = false; st.breakout.closingAt = now() + delay;
+  await saveState(room, st); await pushBoMeta(room, st);
+  scheduleBo(roomId);
+}
+async function finishBreakout(roomId) {
+  clearTimeout(boTimers.get(roomId)); boTimers.delete(roomId);
+  const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId); if (!room) return;
+  const st = getState(room); const bo = st.breakout; if (!bo) return;
+  st.breakout = null;
+  q('UPDATE seats SET bo = 0 WHERE room_id = ?').run(roomId);
+  await saveState(room, st);
+  // Peserta yang belum kembali akan terputus dari ruang kelompok lalu otomatis masuk ke ruang utama
+  await Promise.allSettled(bo.rooms.map((_, i) => lk.deleteRoom(boName(roomId, i + 1))));
+}
+/** Saat aplikasi dinyalakan ulang: lanjutkan timer breakout yang masih berjalan. */
+export function resumeBreakouts() {
+  for (const r of q(`SELECT id FROM rooms WHERE state LIKE '%"breakout":{%'`).all()) scheduleBo(r.id);
+}
+/** Lokasi kursi yang masih berlaku (0 bila breakout sudah ditutup). */
+function seatBo(s, st) { return s.bo && boValid(st.breakout, s.bo) ? s.bo : 0; }
+
 // ---------- Terjemahan lewat server (opsional, TRANSLATE_URL) ----------
 const trCache = new Map(); const trInflight = new Map();
 function serverTranslate(text, from, to) {
@@ -64,7 +135,7 @@ async function saveState(room, st, { push = true } = {}) {
 
 // ---------- Kursi (seat): bukti keanggotaan peserta di room, disimpan (ter-hash) di SQLite ----------
 const SEAT_TTL = 12 * 3600;
-const seatRow = (r) => r && { roomId: r.room_id, identity: r.identity, uid: r.user_id, name: r.name, role: r.role, banKey: r.ban_key };
+const seatRow = (r) => r && { roomId: r.room_id, identity: r.identity, uid: r.user_id, name: r.name, role: r.role, banKey: r.ban_key, bo: r.bo || 0 };
 function getSeat(tok) {
   if (!tok || tok.length > 64) return null;
   return seatRow(q('SELECT * FROM seats WHERE id = ? AND exp > ?').get(sha256(tok), now()));
@@ -294,6 +365,16 @@ export function registerRoomRoutes(r) {
     if (s.role === 'recorder') throw new HttpError(403, 'Tidak diizinkan.');
     if (isBanned(room.id, s.banKey)) throw new HttpError(403, 'Anda telah dikeluarkan dari room ini oleh moderator.');
     const st = getState(room);
+    const n = seatBo(s, st);
+    if (s.bo && !n) q('UPDATE seats SET bo = 0 WHERE room_id = ? AND identity = ?').run(room.id, s.identity);
+    if (n) {
+      // Ruang kelompok: semua anggota boleh kamera, mikrofon, dan berbagi layar
+      const lkName = boName(room.id, n);
+      try { await lk.createRoom(lkName, { maxParticipants: room.max_participants, metadata: boMeta(room, st, n) }); }
+      catch (e) { console.error('[livekit]', e.message); throw new HttpError(503, 'Server media sedang tidak tersedia. Coba beberapa saat lagi.'); }
+      openPresence({ roomId: room.id, session: st.startedAt || now(), identity: s.identity, person: s.banKey, userId: s.uid, name: s.name, role: s.role });
+      return json(res, 200, { url: config.livekit.publicUrl, breakout: n, token: participantToken({ room: lkName, identity: s.identity, name: s.name, role: s.role, sources: ['camera', 'microphone', 'screen_share', 'screen_share_audio'], uid: s.uid }) });
+    }
     if (s.role === 'moderator' && !st.presenter) { st.presenter = s.identity; }
     st.startedAt ??= now();
     try { await lk.createRoom(room.id, { maxParticipants: room.max_participants, metadata: publicMeta(room, st) }); ensured.add(room.id); }
@@ -301,7 +382,7 @@ export function registerRoomRoutes(r) {
     await saveState(room, st);
     const sources = publishSources({ role: s.role, isPresenter: st.presenter === s.identity, locks: st.locks, isSpotlight: st.spotlight === s.identity });
     openPresence({ roomId: room.id, session: st.startedAt, identity: s.identity, person: s.banKey, userId: s.uid, name: s.name, role: s.role });
-    json(res, 200, { url: config.livekit.publicUrl, token: participantToken({ room: room.id, identity: s.identity, name: s.name, role: s.role, sources, uid: s.uid }) });
+    json(res, 200, { url: config.livekit.publicUrl, breakout: 0, token: participantToken({ room: room.id, identity: s.identity, name: s.name, role: s.role, sources, uid: s.uid }) });
   });
 
   r.get('/api/meet/:code/state', (req, res, { code }) => {
@@ -317,33 +398,41 @@ export function registerRoomRoutes(r) {
     json(res, 200, { ok: true });
   });
 
-  const modRoute = (p, fn) => r.post(`/api/meet/:code/mod/${p}`, async (req, res, params) => {
+  // inBreakout: aksi yang juga berlaku di dalam ruang kelompok (dijalankan pada room LiveKit tempat moderator berada)
+  const modRoute = (p, fn, { inBreakout = false } = {}) => r.post(`/api/meet/:code/mod/${p}`, async (req, res, params) => {
     const s = seatFor(req, params.code); requireMod(s);
     if (limiters.api.take('mod:' + s.identity)) throw new HttpError(429, 'Terlalu cepat.');
     const room = loadRoom(params.code);
+    const st = getState(room);
+    const n = seatBo(s, st);
+    if (n && !inBreakout) throw new HttpError(403, 'Tidak tersedia di ruang kelompok. Kembali ke ruang utama terlebih dahulu.');
     const b = await readJson(req);
-    json(res, 200, (await fn({ s, room, b, st: getState(room) })) || { ok: true });
+    json(res, 200, (await fn({ s, room, b, st, lkRoom: n ? boName(room.id, n) : room.id })) || { ok: true });
   });
 
-  modRoute('mute', async ({ room, b, st }) => {
-    const parts = await lk.listParticipants(room.id);
+  modRoute('mute', async ({ b, st, lkRoom }) => {
+    const parts = await lk.listParticipants(lkRoom);
     const targets = b.all
       ? parts.filter(p => (p.attributes?.role || 'viewer') !== 'moderator' && !(b.exceptPresenter && p.identity === st.presenter))
       : parts.filter(p => p.identity === b.identity);
     await Promise.allSettled(targets.flatMap(p => (p.tracks || [])
       .filter(t => (t.source === 'MICROPHONE' || t.source === 2) && !t.muted)
-      .map(t => lk.muteTrack(room.id, p.identity, t.sid))));
+      .map(t => lk.muteTrack(lkRoom, p.identity, t.sid))));
     return { ok: true, count: targets.length };
-  });
+  }, { inBreakout: true });
 
-  modRoute('kick', async ({ s, room, b }) => {
+  modRoute('kick', async ({ s, room, b, st }) => {
     if (b.identity === s.identity) throw new HttpError(400, 'Tidak bisa mengeluarkan diri sendiri.');
     const target = seatByIdentity(room.id, b.identity);
     if (b.ban && target) q('INSERT OR REPLACE INTO bans (room_id, ban_key, until) VALUES (?,?,?)').run(room.id, target.banKey, now() + 24 * 3600);
     q('DELETE FROM seats WHERE room_id = ? AND identity = ?').run(room.id, b.identity); // token kursi lama tidak berlaku lagi
-    try { await lk.removeParticipant(room.id, b.identity); } catch (e) { if (e.status !== 404) throw e; }
+    // Peserta bisa sedang berada di ruang utama atau di salah satu ruang kelompok
+    const rooms = [room.id, ...(st.breakout ? st.breakout.rooms.map((_, i) => boName(room.id, i + 1)) : [])];
+    const results = await Promise.allSettled(rooms.map(nm => lk.removeParticipant(nm, b.identity)));
+    const fatal = results.find(x => x.status === 'rejected' && x.reason?.status !== 404);
+    if (fatal) throw fatal.reason;
     closePresence(room.id, b.identity, now());
-  });
+  }, { inBreakout: true });
 
   modRoute('role', async ({ s, room, b, st }) => {
     const role = b.role === 'moderator' ? 'moderator' : 'viewer';
@@ -368,6 +457,97 @@ export function registerRoomRoutes(r) {
         await lk.updateParticipant(room.id, p.identity, { sources: publishSources({ role: 'viewer', isPresenter: p.identity === b.identity, locks: st.locks, isSpotlight: st.spotlight === p.identity }) }).catch(() => {});
       }
     }
+  });
+
+  // ===== Breakout room =====
+  const nonModSeats = async (room) => {
+    const parts = await lk.listParticipants(room.id);
+    return parts.map(p => ({ p, seat: seatByIdentity(room.id, p.identity) }))
+      .filter(x => x.seat && x.seat.role !== 'moderator' && x.seat.role !== 'recorder');
+  };
+  modRoute('breakout/open', async ({ s, room, b, st }) => {
+    if (boOpen(st.breakout)) throw new HttpError(409, 'Ruang kelompok sedang berjalan. Tutup dulu sebelum membuat yang baru.');
+    const count = Math.min(50, Math.max(1, parseInt(b.count, 10) || 0));
+    const minutes = Math.min(480, Math.max(0, parseInt(b.minutes, 10) || 0));
+    const mode = ['auto', 'manual', 'choose'].includes(b.mode) ? b.mode : 'auto';
+    const names = Array.isArray(b.names) ? b.names : [];
+    const rooms = Array.from({ length: count }, (_, i) => ({ n: i + 1, name: clean(names[i], 40) || `Ruang ${i + 1}` }));
+    const assign = {};
+    if (mode === 'auto') {
+      const list = await nonModSeats(room);
+      for (let i = list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+      list.forEach((x, i) => { assign[x.seat.banKey] = (i % count) + 1; });
+    } else if (mode === 'manual') {
+      for (const [identity, n] of Object.entries(b.assign || {})) {
+        const seat = seatByIdentity(room.id, clean(identity, 80)); const k = parseInt(n, 10);
+        if (seat && k >= 1 && k <= count) assign[seat.banKey] = k;
+      }
+    }
+    st.breakout = { id: randomToken(6), active: true, rooms, assign, allowChoose: mode === 'choose' || !!b.allowChoose, startedAt: now(),
+      endsAt: minutes ? now() + minutes * 60 : null, closingAt: null, by: s.name };
+    st.startedAt ??= now();
+    await saveState(room, st);
+    scheduleBo(room.id);
+    return { ok: true, breakout: boPublic(room, st.breakout) };
+  });
+  // Pindah ruang: n = 0 kembali ke ruang utama
+  r.post('/api/meet/:code/breakout/go', async (req, res, { code }) => {
+    const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room);
+    if (limiters.api.take('bo:' + s.identity)) throw new HttpError(429, 'Terlalu cepat.');
+    const b = await readJson(req);
+    const n = parseInt(b.n, 10) || 0;
+    if (n) {
+      const bo = st.breakout;
+      if (!bo?.active || !boValid(bo, n)) throw new HttpError(409, 'Ruang kelompok tidak tersedia.');
+      if (s.role !== 'moderator' && !bo.allowChoose && bo.assign[s.banKey] !== n) throw new HttpError(403, 'Anda tidak ditempatkan di ruang ini.');
+      if (s.role === 'recorder') throw new HttpError(403, 'Tidak diizinkan.');
+    }
+    q('UPDATE seats SET bo = ? WHERE room_id = ? AND identity = ?').run(n, room.id, s.identity);
+    json(res, 200, { ok: true, n });
+  });
+  // Status ruang kelompok: anggota yang sedang berada di tiap ruang (moderator) / jumlah orang (peserta)
+  r.get('/api/meet/:code/breakout', async (req, res, { code }) => {
+    const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room); const bo = st.breakout;
+    if (limiters.api.take('bos:' + s.identity)) throw new HttpError(429, 'Terlalu cepat.');
+    if (!bo) return json(res, 200, { breakout: null });
+    const lists = await Promise.all([room.id, ...bo.rooms.map((_, i) => boName(room.id, i + 1))].map(nm => lk.listParticipants(nm).catch(() => [])));
+    const isMod = s.role === 'moderator';
+    const people = (parts) => parts.filter(p => !(p.permission?.hidden || p.kind === 'EGRESS' || p.kind === 2))
+      .map(p => { const seat = seatByIdentity(room.id, p.identity); return { identity: p.identity, name: p.name, role: seat?.role || 'viewer', assigned: seat ? bo.assign[seat.banKey] || 0 : 0 }; });
+    const main = people(lists[0]);
+    const roomsOut = bo.rooms.map((r2, i) => { const ppl = people(lists[i + 1]); return { ...r2, count: ppl.length, ...(isMod ? { people: ppl } : {}) }; });
+    json(res, 200, { breakout: { ...boPublic(room, bo), rooms: roomsOut, ...(isMod ? { main } : {}) } });
+  });
+  // Pindahkan / tugaskan ulang peserta (moderator). Bila sedang di ruang lain, peserta diberi tahu & dipindahkan otomatis.
+  modRoute('breakout/move', async ({ room, b, st }) => {
+    const bo = st.breakout; if (!bo?.active) throw new HttpError(409, 'Ruang kelompok tidak aktif.');
+    const identity = clean(b.identity, 80); const n = parseInt(b.n, 10) || 0;
+    const seat = seatByIdentity(room.id, identity); if (!seat) throw new HttpError(404, 'Peserta tidak ditemukan.');
+    if (n && !boValid(bo, n)) throw new HttpError(400, 'Ruang tidak valid.');
+    if (n) bo.assign[seat.banKey] = n; else delete bo.assign[seat.banKey];
+    await saveState(room, st);
+    const where = seat.bo && boValid(bo, seat.bo) ? boName(room.id, seat.bo) : room.id;
+    await lk.sendData(where, { t: 'bo-move', identity, n }).catch(() => {});
+  }, { inBreakout: true });
+  modRoute('breakout/close', async ({ room, b, st }) => {
+    if (!st.breakout) throw new HttpError(409, 'Tidak ada ruang kelompok.');
+    if (b.now || !st.breakout.active) { await finishBreakout(room.id); return; }
+    await closeBreakout(room.id, 60);
+  }, { inBreakout: true });
+  modRoute('breakout/broadcast', async ({ s, room, b, st }) => {
+    const text = clean(b.text, 300); if (!text) throw new HttpError(400, 'Pesan kosong.');
+    if (!st.breakout) throw new HttpError(409, 'Tidak ada ruang kelompok.');
+    await Promise.allSettled(st.breakout.rooms.map((_, i) => lk.sendData(boName(room.id, i + 1), { t: 'bo-msg', text, from: s.name })));
+  }, { inBreakout: true });
+  // Peserta di ruang kelompok meminta bantuan → moderator di ruang utama mendapat notifikasi
+  r.post('/api/meet/:code/breakout/help', async (req, res, { code }) => {
+    const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room);
+    const n = seatBo(s, st); if (!n) throw new HttpError(400, 'Anda tidak sedang di ruang kelompok.');
+    const last = helpAt.get(s.identity) || 0;
+    if (Date.now() - last < 30000) throw new HttpError(429, 'Permintaan bantuan sudah terkirim. Tunggu sebentar.');
+    helpAt.set(s.identity, Date.now()); if (helpAt.size > 5000) helpAt.clear();
+    await lk.sendData(room.id, { t: 'bo-help', n, room: st.breakout.rooms[n - 1].name, name: s.name }).catch(() => {});
+    json(res, 200, { ok: true });
   });
 
   // Sorot (spotlight): kamera satu peserta ditayangkan besar/layar penuh untuk semua orang.
@@ -418,8 +598,10 @@ export function registerRoomRoutes(r) {
     const lang = b.lang === 'en-US' ? 'en-US' : 'id-ID';
     const cid = clean(b.id, 20) || null;
     const session = st.startedAt || now();
-    const info = q('INSERT INTO transcripts (room_id, session, identity, user_id, name, lang, text, ts, cid) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(room.id, session, s.identity, s.uid, s.name, lang, text, now(), cid);
+    const n = seatBo(s, st);
+    const speaker = n ? `${s.name} [${st.breakout.rooms[n - 1].name}]` : s.name;
+    const info = q('INSERT INTO transcripts (room_id, session, identity, user_id, name, lang, text, ts, cid, bo) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(room.id, session, s.identity, s.uid, speaker, lang, text, now(), cid, n);
     const rowId = Number(info.lastInsertRowid);
     json(res, 201, { id: rowId });
     // Bila server terjemahan aktif: terjemahkan sekali ke bahasa lainnya lalu bagikan ke semua peserta & perekam
@@ -428,7 +610,7 @@ export function registerRoomRoutes(r) {
       serverTranslate(text, from, to).then((out) => {
         if (!out) return;
         q('UPDATE transcripts SET tr_lang = ?, tr_text = ? WHERE id = ? AND tr_text IS NULL').run(to === 'en' ? 'en-US' : 'id-ID', out, rowId);
-        return lk.sendData(room.id, { t: 'cap-tr', who: s.identity, id: cid, to, text: out.slice(0, 1500) });
+        return lk.sendData(n ? boName(room.id, n) : room.id, { t: 'cap-tr', who: s.identity, id: cid, to, text: out.slice(0, 1500) });
       }).catch(e => console.warn('[translate]', e.message));
     }
   });
@@ -465,9 +647,9 @@ export function registerRoomRoutes(r) {
 
   // Riwayat sesi berjalan (untuk peserta yang baru masuk / muat ulang)
   r.get('/api/meet/:code/transcript', (req, res, { code }) => {
-    seatFor(req, code); const room = loadRoom(code); const st = getState(room);
+    const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room);
     const limit = new URL(req.url, 'http://x').searchParams.get('all') ? 20000 : 300;   // all=1 untuk ekspor PDF/Word
-    const rows = st.startedAt ? q(`SELECT * FROM (SELECT id, identity, name, lang, text, ts, cid, tr_lang, tr_text FROM transcripts WHERE room_id = ? AND session = ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts, id`).all(room.id, st.startedAt, limit) : [];
+    const rows = st.startedAt ? q(`SELECT * FROM (SELECT id, identity, name, lang, text, ts, cid, tr_lang, tr_text FROM transcripts WHERE room_id = ? AND session = ? AND bo = ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts, id`).all(room.id, st.startedAt, seatBo(s, st), limit) : [];
     json(res, 200, { lines: rows });
   });
 
@@ -500,6 +682,11 @@ export function registerRoomRoutes(r) {
 
   modRoute('end', async ({ room, st }) => {
     if (recordingActive(room.id)) await stopServerRecording(room);
+    if (st.breakout) {
+      const bo = st.breakout; st.breakout = null; clearTimeout(boTimers.get(room.id)); boTimers.delete(room.id);
+      q('UPDATE seats SET bo = 0 WHERE room_id = ?').run(room.id);
+      await Promise.allSettled(bo.rooms.map((_, i) => lk.deleteRoom(boName(room.id, i + 1))));
+    }
     st.presenter = null; st.spotlight = null; st.recording = false; st.pres = st.pres ? { ...st.pres, page: 1 } : null; st.startedAt = null;
     await saveState(room, st, { push: false });
     try { await lk.deleteRoom(room.id); } catch { /* sudah berakhir */ }
@@ -510,7 +697,8 @@ export function registerRoomRoutes(r) {
   });
 
   // ===== Presentasi (PDF) =====
-  const canPresent = (s, st) => s.role === 'moderator' || st.presenter === s.identity;
+  // Presentasi/whiteboard bersama milik ruang utama; di ruang kelompok whiteboard berjalan lewat data channel saja
+  const canPresent = (s, st) => !seatBo(s, st) && (s.role === 'moderator' || st.presenter === s.identity);
 
   r.post('/api/meet/:code/state/presentation', async (req, res, { code }) => {
     const s = seatFor(req, code); const room = loadRoom(code); const st = getState(room);
@@ -586,7 +774,9 @@ export function registerRoomRoutes(r) {
     const raw = await readBody(req, 64 * 1024);
     if (!verifyWebhook(raw, req.headers.authorization)) throw new HttpError(401, 'Signature webhook tidak valid.');
     const ev = JSON.parse(raw.toString('utf8'));
-    const roomId = ev.room?.name; const identity = ev.participant?.identity;
+    // Ruang kelompok ("<id>__b<n>") dicatat pada room utamanya
+    const lkName = ev.room?.name; const roomId = lkName ? mainIdOf(lkName) : undefined; const lkN = boNumOf(lkName);
+    const identity = ev.participant?.identity;
     const t = Number(ev.createdAt || ev.created_at) || now();
     if (String(ev.event).startsWith('egress_')) {
       const rid = onEgressWebhook(ev);
@@ -601,9 +791,11 @@ export function registerRoomRoutes(r) {
     const isRecorder = p.kind === 'EGRESS' || p.kind === 2 || p.permission?.recorder || p.permission?.hidden || /^EG_/.test(identity || '');
     if (isRecorder) return json(res, 200, { ok: true });
     if (ev.event === 'participant_left' && roomId && identity) {
-      closePresence(roomId, identity, t);
+      // Pindah antar-ruang (utama <-> kelompok) bukan "keluar": presensi tetap tersambung
+      const seat = seatByIdentity(roomId, identity);
+      if (!seat || (seat.bo || 0) === lkN) closePresence(roomId, identity, t);
       // Peserta yang disorot keluar → sorotan dilepas
-      const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId);
+      const room = !lkN && q('SELECT * FROM rooms WHERE id = ?').get(roomId);
       if (room) { const st = getState(room); if (st.spotlight === identity) { st.spotlight = null; await saveState(room, st); } }
     }
     if (ev.event === 'participant_joined' && roomId && identity) {
@@ -611,16 +803,19 @@ export function registerRoomRoutes(r) {
       const room = q('SELECT * FROM rooms WHERE id = ?').get(roomId);
       if (!seat || !room || isBanned(roomId, seat.banKey)) {
         // Token lama milik peserta yang sudah dikeluarkan/kedaluwarsa → keluarkan lagi
-        lk.removeParticipant(roomId, identity).catch(() => {});
+        lk.removeParticipant(lkName, identity).catch(() => {});
       } else {
         const st0 = getState(room);
         openPresence({ roomId, session: st0.startedAt || t, identity, person: seat.banKey, userId: seat.uid, name: seat.name, role: seat.role, t });
         // Samakan peran & izin dengan keadaan server (mencegah token lama membawa hak yang sudah dicabut)
         const st = getState(room);
         const attrs = { ...(ev.participant.attributes || {}), role: seat.role };
-        lk.updateParticipant(roomId, identity, { attributes: attrs, sources: publishSources({ role: seat.role, isPresenter: st.presenter === identity, locks: st.locks, isSpotlight: st.spotlight === identity }) }).catch(() => {});
+        const sources = lkN ? ['camera', 'microphone', 'screen_share', 'screen_share_audio']
+          : publishSources({ role: seat.role, isPresenter: st.presenter === identity, locks: st.locks, isSpotlight: st.spotlight === identity });
+        lk.updateParticipant(lkName, identity, { attributes: attrs, sources }).catch(() => {});
       }
     }
+    if (ev.event === 'room_finished' && lkN) return json(res, 200, { ok: true }); // ruang kelompok ditutup: room utama tetap berjalan
     if (ev.event === 'room_finished' && roomId) {
       ensured.delete(roomId);
       closeAllPresence(roomId, t);

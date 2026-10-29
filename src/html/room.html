@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
-<title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
 <!--CSS:site-->
 <!--CSS:roomcss-->
 </head>
@@ -106,12 +106,14 @@
             <button id="m-settings"><i data-i="settings" data-s="16"></i>Pengaturan</button>
             <button id="m-info"><i data-i="info" data-s="16"></i>Info room</button>
             <button id="m-shortcuts"><i data-i="keyboard" data-s="16"></i>Pintasan keyboard</button>
+            <button id="m-breakout" class="mod-only"><i data-i="users" data-s="16"></i>Ruang kelompok (breakout)</button>
             <button id="m-end" class="mod-only danger"><i data-i="phone-off" data-s="16"></i>Akhiri meeting untuk semua</button>
             <button id="m-leave"><i data-i="log-out" data-s="16"></i>Keluar</button>
           </div></div>
       </div>
     </header>
-
+    <div class="bo-bar" id="bo-bar" hidden role="status" aria-live="polite"></div>
+    <div class="bo-ann" id="bo-ann" hidden role="alert"></div>
 
     <div class="cams" id="cams" hidden>
       <button class="cam-page prev" id="cam-prev" aria-label="Kamera sebelumnya" hidden><i data-i="chevron-left"></i></button>

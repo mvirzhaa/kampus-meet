@@ -8,7 +8,7 @@ const crc32 = (b) => { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c 
 function zip(files, type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
   const enc = new TextEncoder(); const parts = []; const central = []; let offset = 0;
   for (const [name, text] of files) {
-    const nameB = enc.encode(name); const data = enc.encode(text); const crc = crc32(data);
+    const nameB = enc.encode(name); const data = typeof text === 'string' ? enc.encode(text) : text; const crc = crc32(data);
     const local = new DataView(new ArrayBuffer(30));
     local.setUint32(0, 0x04034b50, true); local.setUint16(4, 20, true); local.setUint16(6, 0x0800, true);
     local.setUint32(14, crc, true); local.setUint32(18, data.length, true); local.setUint32(22, data.length, true); local.setUint16(26, nameB.length, true);
@@ -68,7 +68,7 @@ ${rows.length ? `<autoFilter ref="A${headerRow}:${last}${headerRow + rows.length
 </styleSheet>`;
   const safeSheet = esc(sheetName.replace(/[\\/?*[\]:]/g, ' ').slice(0, 31) || 'Sheet1');
   return zip([
-    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
+    ['[Content_Types].xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>`],
     ['_rels/.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`],
     ['xl/workbook.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${safeSheet}" sheetId="1" r:id="rId1"/></sheets></workbook>`],
     ['xl/_rels/workbook.xml.rels', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`],
@@ -118,6 +118,13 @@ const latin = (v) => String(v ?? '').replace(/[–—−]/g, '-').replace(/[‘�
  *   info:[string,string][], headers:string[], rows:any[][], columnStyles?:object, statusCol?:number,
  *   summary?:string, sign?:{date?:string, title:string, name:string}, note?:string}} o
  */
+let logoCache = null;
+/** Ikon logo (PNG 128 px) untuk kop PDF/Word; null bila gagal dimuat (kop tetap dibuat tanpa gambar). */
+function logoPng() {
+  logoCache ??= fetch('/img/uika-meet-mark-128.png').then(r => r.ok ? r.arrayBuffer() : null).then(b => b && new Uint8Array(b)).catch(() => null);
+  return logoCache;
+}
+
 export async function attendancePdf(o) {
   const [{ jsPDF }, { autoTable }] = await Promise.all([import('jspdf'), import('jspdf-autotable')]);
   const doc = new jsPDF({ orientation: o.orientation || 'portrait', unit: 'pt', format: 'a4' });
@@ -126,9 +133,10 @@ export async function attendancePdf(o) {
   const printed = new Intl.DateTimeFormat('id-ID', { timeZone: 'Asia/Jakarta', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(/\./g, ':');
 
   // --- Kop ---
+  const logo = await logoPng();
   const kop = () => {
-    doc.setFillColor(74, 120, 189); doc.roundedRect(M, 30, 34, 34, 7, 7, 'F');
-    doc.setFillColor(255, 255, 255); doc.roundedRect(M + 7, 41, 13, 12, 2, 2, 'F'); doc.triangle(M + 21, 47, M + 28, 42, M + 28, 52, 'F');
+    if (logo) doc.addImage(logo, 'PNG', M, 30, 34, 34);
+    else { doc.setFillColor(16, 185, 129); doc.roundedRect(M, 30, 34, 34, 9, 9, 'F'); }
     doc.setFont('helvetica', 'bold'); doc.setFontSize(15); doc.setTextColor(...INK); doc.text(latin(o.app), M + 46, 44);
     doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(...MUTED); doc.text(latin(o.campus), M + 46, 59);
     doc.setDrawColor(...BLUE); doc.setLineWidth(1.6); doc.line(M, 76, W - M, 76);
@@ -253,7 +261,8 @@ const para = (runs, { align, after = 60, before = 0, border } = {}) => `<w:p><w:
 const cell = (content, w, { fill, header } = {}) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}${header ? '<w:vAlign w:val="center"/>' : ''}</w:tcPr>${content}</w:tc>`;
 
 /** Transkrip dalam Microsoft Word (.docx) — ditulis langsung tanpa pustaka. */
-export function transcriptDocx(o) {
+export async function transcriptDocx(o) {
+  const logo = await logoPng();
   const { hasTr, info } = transcriptSummary(o);
   const widths = hasTr ? [1000, 1700, 560, 3189, 3189] : [1000, 2000, 560, 6078];
   const heads = hasTr ? ['Waktu', 'Pembicara', 'Bhs', 'Ucapan', 'Terjemahan'] : ['Waktu', 'Pembicara', 'Bhs', 'Ucapan'];
@@ -277,7 +286,7 @@ export function transcriptDocx(o) {
     `<w:tr>${cell(P(k, { size: 20, color: '667284' }), 2200)}${cell(P(':', { size: 20 }), 240)}${cell(P(v, { b: true, size: 20 }), 7198)}</w:tr>`).join('')}</w:tbl>`;
   const printed = new Intl.DateTimeFormat('id-ID', { timeZone: TZ_ID, day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date()).replace(/\./g, ':');
   const body = [
-    para(run(o.app, { b: true, size: 30, color: '1F2B3D' }), { after: 0 }),
+    para((logo ? `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="114300"><wp:extent cx="432000" cy="432000"/><wp:docPr id="1" name="Logo"/><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="1" name="logo.png"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="rIdLogo"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="432000" cy="432000"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>` : '') + run((logo ? ' ' : '') + o.app, { b: true, size: 30, color: '0E1442' }), { after: 0 }),
     para(run(o.campus, { size: 20, color: '667284' }), { after: 120, border: true }),
     para(run('TRANSKRIP OTOMATIS', { b: true, size: 34, color: '1F2B3D' }), { align: 'center', before: 240, after: 40 }),
     para(run(o.title, { b: true, size: 24, color: '3963A7' }), { align: 'center', after: 240 }),
@@ -286,15 +295,15 @@ export function transcriptDocx(o) {
     mainTable,
     para(run('Transkrip dibuat otomatis dari pengenalan suara di perangkat masing-masing pembicara' + (hasTr ? ', dan terjemahan dibuat otomatis oleh mesin' : '') + '; dapat mengandung kekeliruan.', { i: true, size: 16, color: '667284' }), { before: 160 }),
   ].join('');
-  const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+  const NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
   const footer = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${NS}><w:p><w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="4" w:color="D7DEE8"/></w:pBdr><w:tabs><w:tab w:val="right" w:pos="9638"/></w:tabs><w:rPr><w:sz w:val="15"/></w:rPr></w:pPr>${run(`Dokumen dibuat otomatis oleh ${o.app} pada ${printed} WIB`, { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/></w:rPr><w:tab/></w:r>${run('Halaman ', { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r>${run(' dari ', { size: 15, color: '667284' })}<w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:instrText xml:space="preserve"> NUMPAGES </w:instrText></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:t>1</w:t></w:r><w:r><w:rPr><w:sz w:val="15"/><w:color w:val="667284"/></w:rPr><w:fldChar w:fldCharType="end"/></w:r></w:p></w:ftr>`;
   const doc = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${body}<w:sectPr><w:footerReference w:type="default" r:id="rIdFooter"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1000" w:right="1134" w:bottom="1000" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`;
   const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="21"/><w:szCs w:val="21"/><w:lang w:val="id-ID"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="60" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`;
-  const types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>';
+  const types = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>';
   const rels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>';
-  const docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/></Relationships>';
+  const docRels = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rIdStyles" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/><Relationship Id="rIdFooter" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>' + (logo ? '<Relationship Id="rIdLogo" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/logo.png"/>' : '') + '</Relationships>';
   const iso = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
   const core = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>${xe('Transkrip - ' + o.title)}</dc:title><dc:creator>${xe(o.app)}</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">${iso}</dcterms:created></cp:coreProperties>`;
-  return zip([['[Content_Types].xml', types], ['_rels/.rels', rels], ['word/document.xml', doc], ['word/styles.xml', styles], ['word/_rels/document.xml.rels', docRels], ['word/footer1.xml', footer], ['docProps/core.xml', core]],
+  return zip([['[Content_Types].xml', types], ['_rels/.rels', rels], ['word/document.xml', doc], ['word/styles.xml', styles], ['word/_rels/document.xml.rels', docRels], ['word/footer1.xml', footer], ['docProps/core.xml', core], ...(logo ? [['word/media/logo.png', logo]] : [])],
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 }
