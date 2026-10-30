@@ -195,6 +195,45 @@ secara lokal berarti kita harus memegang rahasia itu — dan siapa pun yang meme
 menerbitkan token untuk pengguna mana pun di **seluruh** aplikasi SSO. Karena itu kita selalu
 menukarnya lewat `/api/sso/introspect`, tidak pernah mendekode sendiri.
 
+#### Bila server tidak bisa menjangkau E-Portal (NAT kampus)
+
+Gejalanya: login dari E-Portal berakhir di `/login?sso=down`, dan log menunjukkan
+
+```
+[sso] introspect tidak terjangkau: The operation was aborted due to timeout
+```
+
+Penyebabnya bukan kredensial, melainkan jaringan: `eportal.uika-bogor.ac.id` mengarah ke IP
+publik kampus, sedangkan server Meet berada di balik NAT kampus yang sama dan tidak bisa
+keluar-masuk ke IP publik itu (*hairpin*). Server Meet harus menjangkaunya lewat IP lokal.
+
+Cari IP lokal E-Portal (jalankan **di server E-Portal**):
+
+```bash
+ip -4 addr show | grep -w inet          # mis. 172.16.18.141/24
+```
+
+Lalu isi di `.env` server Meet:
+
+```env
+SSO_HOST_MAP=eportal.uika-bogor.ac.id:172.16.18.141
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env up -d --force-recreate app
+```
+
+**Nama domainnya sengaja dipertahankan, bukan diganti IP telanjang di `SSO_BASE_URL`.**
+E-Portal berada di belakang `nginx-waf` yang memilih situs berdasarkan header `Host`;
+mengakses lewat IP akan ditolak. Mempertahankan nama domain juga menjaga SNI dan validasi
+sertifikat TLS tetap benar — jadi lalu lintasnya tetap terenkripsi, hanya DNS-nya yang
+dilewati.
+
+Catatan pemeliharaan: ini memintas DNS, jadi bila IP lokal E-Portal berubah, SSO akan mati
+dengan gejala `sso=down` yang sama. Perbaikan yang lebih benar adalah meminta tim IT membuka
+jalur server-ke-server atau menyediakan DNS internal; `SSO_HOST_MAP` adalah penambal
+sementara yang sengaja dicatat di sini agar tidak jadi misteri di kemudian hari.
+
 #### Siapa boleh membuat meeting & event
 
 Dosen, staf, dan admin selalu boleh. Dua kategori lain diatur lewat **Panel Admin → Pengaturan**:

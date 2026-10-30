@@ -36,6 +36,13 @@ services:
     restart: unless-stopped
     network_mode: host
     env_file: ../.env
+    # network_mode: host membuat container punya /etc/hosts sendiri, jadi entri milik
+    # host TIDAK terbaca. Dipakai ketika layanan kampus (mis. E-Portal) hanya bisa
+    # dijangkau lewat IP lokal karena NAT kampus tidak mendukung hairpin.
+    # Isi SSO_HOST_MAP di .env, contoh: eportal.uika-bogor.ac.id:172.16.18.141
+    # Nama domain sengaja dipertahankan agar header Host dan sertifikat TLS tetap cocok.
+    extra_hosts:
+      - "${SSO_HOST_MAP:-pemetaan-tidak-dipakai.invalid:127.0.0.1}"
     environment:
       HOST: 127.0.0.1                                  # network_mode host: cukup dengarkan lokal, publik lewat Caddy
       LIVEKIT_URL: http://127.0.0.1:7880
