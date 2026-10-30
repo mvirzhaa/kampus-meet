@@ -8,6 +8,7 @@ Nama aplikasi, nama kampus, dan domain email bisa diganti lewat `.env` (`APP_NAM
 
 **Halaman depan & akun**
 - Beranda: gabung dengan ID room, *Buat Meeting Baru* (mulai sekarang / buat untuk nanti / jadwalkan), daftar event mendatang, tata cara mengikuti event.
+- **Masuk lewat SSO E-Portal UIKA** (opsional): civitas klik modul Meet di dasbor E-Portal dan langsung masuk; peran institusional (dosen/mahasiswa/staf/admin) ikut terbawa. Login & daftar lokal tetap ada untuk peserta luar kampus.
 - Login & daftar (bisa dibatasi ke email kampus). Pengguna pertama yang mendaftar otomatis menjadi **admin**; satu akun bisa dikunci sebagai **super-admin** lewat `ADMIN_EMAIL` di `.env`.
 - **Panel Admin** (`/admin`, khusus admin): kelola **kategori event** (tambah/ubah nama/nonaktifkan/hapus — tanpa perlu ubah kode), kelola **pengguna** (cari, jadikan admin atau turunkan, nonaktifkan akun, reset password, buka kunci login), serta lihat & hapus **seluruh meeting dan event** milik siapa pun.
 - Dasbor: daftar meeting (ID, password, link moderator & peserta, salin undangan, ubah, rekap kehadiran + unduh CSV, hapus), event, sertifikat, akun.
@@ -167,6 +168,64 @@ perubahan konfigurasi.
 > aman. Hindari `--remove-orphans`: perilakunya terhadap layanan berprofil tidak konsisten
 > antar versi compose dan bisa menghapus container ini.
 
+### SSO E-Portal UIKA (opsional)
+
+Isi empat nilai di `.env` lalu buat ulang container `app`:
+
+```env
+SSO_BASE_URL=https://eportal.uika-bogor.ac.id/eportal-api
+SSO_CLIENT_ID=<dari admin E-Portal>
+SSO_CLIENT_SECRET=<dari admin E-Portal>
+SSO_APP_MODULE_ID=19
+```
+
+```bash
+docker compose -f deploy/docker-compose.yml --env-file .env up -d --force-recreate app
+curl -s http://127.0.0.1:3000/api/sso/status      # {"enabled":true}
+```
+
+Kosongkan salah satunya dan SSO otomatis mati — aplikasi tetap berjalan penuh dengan login lokal.
+
+**Alurnya hanya dari E-Portal.** Pengguna mengklik modul Meet di dasbor E-Portal; tidak ada
+tombol "login dengan E-Portal" di halaman kita, karena E-Portal tidak menyediakan cara bagi
+aplikasi lain untuk memulai alur login.
+
+Token dari E-Portal ditandatangani **HS256 dengan rahasia milik mereka**. Memverifikasinya
+secara lokal berarti kita harus memegang rahasia itu — dan siapa pun yang memegangnya bisa
+menerbitkan token untuk pengguna mana pun di **seluruh** aplikasi SSO. Karena itu kita selalu
+menukarnya lewat `/api/sso/introspect`, tidak pernah mendekode sendiri.
+
+#### Siapa boleh membuat meeting & event
+
+Dosen, staf, dan admin selalu boleh. Dua kategori lain diatur lewat **Panel Admin → Pengaturan**:
+
+| Kategori | Dikenali dari | Bawaan |
+| --- | --- | --- |
+| Mahasiswa & peran belum ditentukan | `institutional_role` = `mahasiswa` atau `user` | menyala |
+| Pendaftar luar | akun tanpa `sso_id` | menyala |
+
+Masing-masing punya saklar terpisah untuk meeting dan event. Bawaannya menyala supaya
+mengaktifkan SSO tidak diam-diam mencabut hak siapa pun.
+
+Peran `admin` di E-Portal otomatis menjadi admin UIKA Meet, dan disesuaikan ulang setiap
+login — pencabutan di E-Portal langsung berlaku di sini. Akun `ADMIN_EMAIL` tidak pernah
+diturunkan oleh SSO.
+
+#### Catatan risiko: penautan akun
+
+Saat identitas E-Portal pertama kali masuk, ia ditautkan otomatis ke akun lokal yang emailnya
+sama, dan **password lokal akun itu sengaja dibiarkan aktif** (keputusan pemilik produk).
+
+Konsekuensinya: pendaftaran lokal tidak memverifikasi email, sehingga seseorang bisa
+mendaftar lebih dulu memakai email staf, lalu ketika pemilik aslinya masuk lewat E-Portal,
+identitas itu menempel ke akun yang passwordnya dipegang si pendaftar. Bila akun tersebut
+berperan `admin` di E-Portal, ia juga menjadi admin UIKA Meet.
+
+Pengamannya: **Panel Admin → Pengguna** menandai akun semacam itu dengan label
+**"Dua jalur"** (punya password lokal *dan* tautan E-Portal), sehingga admin bisa
+memeriksanya. Bila ingin menutup celahnya sepenuhnya, pilihannya: larang pendaftaran lokal
+dengan email `@uika-bogor.ac.id`, atau matikan password lokal pada akun yang tertaut SSO.
+
 ## Mengatasi "Gagal terhubung ke server media"
 
 Halaman ruang terbuka dan spinner *Menghubungkan ke meeting…* berputar lalu gagal → halaman aplikasi
@@ -278,5 +337,4 @@ deploy/        docker-compose.yml, Caddyfile, *.template.yaml (sumber konfiguras
 - Dokumen Word/PowerPoint perlu disimpan sebagai **PDF** dulu (konversi Office di server sengaja tidak dipakai karena berat).
 - Latar virtual memakai model MediaPipe yang diunduh browser dari Google; untuk host sendiri jalankan `scripts/fetch-model.sh` dan set `SEGMENTER_MODEL_URL`.
 - Rekaman tersimpan di komputer moderator (Chrome/Edge). Bila butuh rekaman otomatis di server, tambahkan LiveKit Egress (memerlukan server terpisah karena berat).
-- Belum ada SSO kampus (integrasi E-Portal) — bisa ditambahkan kemudian.
 - Data tersimpan di `data/` (SQLite + file presentasi). Cadangkan folder ini secara berkala.

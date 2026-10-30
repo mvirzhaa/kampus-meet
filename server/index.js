@@ -6,6 +6,7 @@ import { registerAuthRoutes } from './auth.js';
 import { registerRoomRoutes, createRoomRecord, uploadsDir, resumeBreakouts } from './rooms.js';
 import { registerEventRoutes } from './events.js';
 import { registerAdminRoutes } from './admin.js';
+import { registerSsoRoutes } from './sso.js';
 import { limiters } from './security.js';
 
 const api = new Router();
@@ -14,6 +15,7 @@ registerRoomRoutes(api);
 resumeBreakouts();
 registerEventRoutes(api, { createRoomRecord });
 registerAdminRoutes(api, { uploadsDir });
+registerSsoRoutes(api);
 api.get('/api/health', (req, res) => json(res, 200, { ok: true }));
 
 // Halaman (clean URL → file HTML statis)
@@ -29,7 +31,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const pathname = url.pathname;
   try {
-    if (pathname.startsWith('/api/')) {
+    if (pathname.startsWith('/api/') || pathname.startsWith('/sso/')) {
       checkOrigin(req);
       if (pathname !== '/api/livekit/webhook') {
         const wait = limiters.api.take(clientIp(req));

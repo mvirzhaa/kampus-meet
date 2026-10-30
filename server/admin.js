@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
-import { q, now, tx } from './db.js';
+import { q, now, tx, getSetting, setSetting } from './db.js';
 import { HttpError, json, readJson } from './http.js';
 import { requireUser, requireCsrf, requireAdmin, isSuperAdmin } from './auth.js';
 import { clean, hashPassword, passwordProblem } from './security.js';
@@ -32,6 +32,10 @@ const userView = (u) => ({
   id: u.id, email: u.email, name: u.name, role: u.role, status: u.status,
   createdAt: u.created_at, lockedUntil: u.locked_until,
   superAdmin: isSuperAdmin(u.email),
+  ssoLinked: !!u.sso_id,
+  institutionalRole: u.institutional_role || null,
+  // Password lokal + tautan SSO sekaligus: perlu terlihat admin, lihat catatan di README
+  hasLocalPassword: !!u.password_hash && u.password_hash.startsWith('scrypt$'),
   rooms: q('SELECT COUNT(*) AS n FROM rooms WHERE owner_id = ?').get(u.id).n,
   events: q('SELECT COUNT(*) AS n FROM events WHERE owner_id = ?').get(u.id).n,
 });
@@ -39,11 +43,69 @@ const userView = (u) => ({
 /** Pencarian sederhana: ubah teks bebas menjadi pola LIKE yang aman. */
 const like = (term) => `%${term.replace(/[%_\\]/g, '')}%`;
 
+
+// ===== Gerbang "boleh membuat" =====
+// Peran institusional datang dari E-Portal; akun tanpa sso_id berarti pendaftar luar.
+// "user" (peran bawaan E-Portal untuk akun yang belum dikategorikan) sengaja disamakan
+// dengan mahasiswa: yang perannya belum diisi tidak otomatis mendapat hak penuh.
+const STAFF_ROLES = ['dosen', 'staff', 'admin'];
+
+export const CREATE_FLAGS = {
+  allow_student_meeting: 'Mahasiswa & peran belum ditentukan boleh membuat meeting',
+  allow_student_event: 'Mahasiswa & peran belum ditentukan boleh membuat event',
+  allow_external_meeting: 'Pendaftar luar boleh membuat meeting',
+  allow_external_event: 'Pendaftar luar boleh membuat event',
+};
+
+/** Bawaannya menyala, supaya mengaktifkan SSO tidak diam-diam mencabut hak siapa pun. */
+export const createFlag = (key) => getSetting(key) !== '0';
+
+/** 'staff' (selalu boleh) | 'student' (ikut toggle) | 'external' (ikut toggle) */
+export function userScope(userId) {
+  const row = q('SELECT sso_id, institutional_role FROM users WHERE id = ?').get(userId);
+  if (!row?.sso_id) return 'external';
+  return STAFF_ROLES.includes(String(row.institutional_role || '').toLowerCase()) ? 'staff' : 'student';
+}
+
+/** Lempar 403 bila kategori pengguna ini sedang tidak boleh membuat `kind` ('meeting' | 'event'). */
+export function assertCanCreate(req, kind) {
+  const u = requireUser(req);
+  if (u.role === 'admin') return u;                  // admin Meet selalu boleh
+  const scope = userScope(u.id);
+  if (scope === 'staff') return u;
+  if (createFlag(`allow_${scope}_${kind}`)) return u;
+  const siapa = scope === 'student' ? 'mahasiswa' : 'akun non-kampus';
+  const apa = kind === 'event' ? 'event' : 'meeting';
+  throw new HttpError(403, `Pembuatan ${apa} oleh ${siapa} sedang dinonaktifkan oleh admin.`);
+}
+
 export function registerAdminRoutes(r, { uploadsDir }) {
   // Dipakai form event oleh pengguna biasa (bukan rute admin).
   r.get('/api/categories', (req, res) => {
     requireUser(req);
     json(res, 200, { categories: activeCategories() });
+  });
+
+
+  // ---------- Pengaturan (4 toggle "boleh membuat") ----------
+  r.get('/api/admin/settings', (req, res) => {
+    requireAdmin(req);
+    const flags = {};
+    for (const k of Object.keys(CREATE_FLAGS)) flags[k] = createFlag(k);
+    json(res, 200, { flags, labels: CREATE_FLAGS });
+  });
+
+  r.patch('/api/admin/settings', async (req, res) => {
+    requireAdmin(req); requireCsrf(req);
+    const b = await readJson(req);
+    const changed = {};
+    for (const k of Object.keys(CREATE_FLAGS)) {
+      if (b[k] === undefined) continue;
+      setSetting(k, b[k] ? '1' : '0');
+      changed[k] = !!b[k];
+    }
+    if (!Object.keys(changed).length) throw new HttpError(400, 'Tidak ada perubahan.');
+    json(res, 200, { flags: changed });
   });
 
   // ---------- Kategori ----------

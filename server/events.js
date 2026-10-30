@@ -8,7 +8,7 @@ import { q, now, tx } from './db.js';
 import { HttpError, json, readJson, readBody } from './http.js';
 import { currentUser, requireUser, requireCsrf } from './auth.js';
 import { clean, cleanMultiline, randomToken, encrypt, decrypt, limiters } from './security.js';
-import { validCategory, fallbackCategory } from './admin.js';
+import { validCategory, fallbackCategory, assertCanCreate } from './admin.js';
 
 function slugify(title) {
   const base = title.toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').slice(0, 50) || 'event';
@@ -137,7 +137,7 @@ export function registerEventRoutes(r, { createRoomRecord }) {
   });
 
   r.post('/api/events', async (req, res) => {
-    const u = requireUser(req); requireCsrf(req);
+    const u = assertCanCreate(req, 'event'); requireCsrf(req);
     const data = eventInput(await readJson(req));
     const ev = tx(() => {
       const room = createRoomRecord(u.id, { name: data.title, allowGuests: false, muteOnJoin: true, password: '', welcome: `Selamat datang di ${data.title}.` });

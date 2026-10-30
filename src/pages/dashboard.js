@@ -17,9 +17,19 @@ function show() {
 addEventListener('hashchange', show);
 
 // ---------- Meeting ----------
-$('#q-now').addEventListener('click', startInstantMeeting);
-$('#q-later').addEventListener('click', () => roomFormModal({ onSaved: loadRooms }));
-$('#q-sched').addEventListener('click', () => roomFormModal({ schedule: true, onSaved: loadRooms }));
+// Hak membuat ditentukan server (peran E-Portal + toggle admin). Tombol disembunyikan
+// bila tidak berhak, tapi penegakan sebenarnya tetap di server.
+if (me.can && !me.can.meeting) {
+  $('.quick')?.remove();
+  $('#rooms')?.before(h('div', { class: 'note-ok' }, icon('info', 18),
+    h('div', {}, h('strong', { text: 'Pembuatan meeting sedang dinonaktifkan' }),
+      h('p', { text: 'Anda tetap dapat bergabung ke meeting lewat tautan undangan. Hubungi admin bila perlu membuat meeting sendiri.' }))));
+}
+if (me.can && !me.can.event) $('#new-event')?.remove();
+
+$('#q-now')?.addEventListener('click', startInstantMeeting);
+$('#q-later')?.addEventListener('click', () => roomFormModal({ onSaved: loadRooms }));
+$('#q-sched')?.addEventListener('click', () => roomFormModal({ schedule: true, onSaved: loadRooms }));
 $('#refresh').addEventListener('click', () => loadRooms());
 
 const enterLink = (room) => `/j/${room.id}?k=${encodeURIComponent(new URL(room.moderatorLink).searchParams.get('k'))}`;
@@ -212,7 +222,7 @@ async function transcripts(room, pick) {
 }
 
 // ---------- Event ----------
-$('#new-event').addEventListener('click', () => eventForm().catch(e => toast(e.message, 'error')));
+$('#new-event')?.addEventListener('click', () => eventForm().catch(e => toast(e.message, 'error')));
 async function loadEvents() {
   try {
     const { organized, registered } = await api('GET', '/api/my/events');

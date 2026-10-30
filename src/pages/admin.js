@@ -12,7 +12,7 @@ function show() {
   const sec = (location.hash || '#kategori').slice(1);
   for (const p of $$('[data-panel]')) p.hidden = p.dataset.panel !== sec;
   for (const a of $$('.side a[data-sec]')) a.classList.toggle('active', a.dataset.sec === sec);
-  ({ kategori: loadCats, pengguna: loadUsers, meeting: loadRooms, event: loadEvents })[sec]?.();
+  ({ pengaturan: loadSettings, kategori: loadCats, pengguna: loadUsers, meeting: loadRooms, event: loadEvents })[sec]?.();
 }
 addEventListener('hashchange', show);
 
@@ -35,6 +35,55 @@ async function loadOverview() {
       tile('Event', o.events));
     $('#overview').hidden = false;
   } catch { /* ringkasan bersifat tambahan; abaikan bila gagal */ }
+}
+
+
+// ==================== Pengaturan ====================
+// Empat saklar "boleh membuat". Dosen/staf/admin tidak pernah terpengaruh.
+const SETTING_GROUPS = [
+  {
+    judul: 'Mahasiswa & peran belum ditentukan',
+    catatan: 'Berlaku untuk akun E-Portal berperan mahasiswa, dan akun yang perannya belum dikategorikan (user).',
+    kunci: { allow_student_meeting: 'Boleh membuat meeting', allow_student_event: 'Boleh membuat event' },
+  },
+  {
+    judul: 'Pendaftar luar',
+    catatan: 'Akun yang mendaftar sendiri di UIKA Meet, tanpa akun E-Portal — misalnya narasumber atau peserta event umum.',
+    kunci: { allow_external_meeting: 'Boleh membuat meeting', allow_external_event: 'Boleh membuat event' },
+  },
+];
+
+function settingRow(key, label, on) {
+  const input = h('input', {
+    type: 'checkbox', checked: on,
+    onchange: (e) => saveSetting(key, e.target.checked, e.target),
+  });
+  return h('tr', {},
+    h('td', { text: label }),
+    h('td', {}, h('label', { class: 'switch plain' }, input, h('i', {}))));
+}
+
+function settingCard(g, flags) {
+  const rows = Object.entries(g.kunci).map(([key, label]) => settingRow(key, label, flags[key]));
+  return h('div', { class: 'section-card' },
+    h('h3', { text: g.judul }),
+    h('p', { class: 'ev-meta', text: g.catatan }),
+    h('table', { class: 'lock-table' }, h('tbody', {}, rows)));
+}
+
+async function loadSettings() {
+  const box = $('#settings');
+  try {
+    const { flags } = await api('GET', '/api/admin/settings');
+    box.replaceChildren(...SETTING_GROUPS.map(g => settingCard(g, flags)));
+  } catch (e) { fail(box, e); }
+}
+
+async function saveSetting(key, value, input) {
+  input.disabled = true;
+  try { await api('PATCH', '/api/admin/settings', { [key]: value }); toast('Pengaturan disimpan', 'success', 2000); }
+  catch (e) { toast(e.message, 'error'); input.checked = !value; }
+  finally { input.disabled = false; }
 }
 
 // ==================== Kategori ====================
@@ -128,6 +177,9 @@ function userRow(u) {
       u.superAdmin ? h('span', { class: 'pill' }, icon('crown', 14), 'Super-admin')
         : u.role === 'admin' ? h('span', { class: 'pill' }, icon('shield-check', 14), 'Admin')
           : h('span', { class: 'pill gray', text: 'Pengguna' }),
+      u.ssoLinked ? h('span', { class: 'pill', title: `Peran E-Portal: ${u.institutionalRole || 'tidak diketahui'}` }, icon('shield-check', 14), 'E-Portal') : null,
+      // Dua jalur masuk sekaligus: layak dilihat admin (lihat catatan risiko di README)
+      u.ssoLinked && u.hasLocalPassword ? h('span', { class: 'pill red', title: 'Akun ini punya password lokal DAN tautan E-Portal' }, icon('alert', 14), 'Dua jalur') : null,
       u.status === 'disabled' ? h('span', { class: 'pill red', text: 'Nonaktif' }) : null,
       locked ? h('span', { class: 'pill red', text: 'Terkunci' }) : null),
     h('td', { text: `${u.rooms} meeting · ${u.events} event` }),

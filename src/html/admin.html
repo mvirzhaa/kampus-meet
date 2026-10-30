@@ -11,6 +11,7 @@
 <main class="page">
   <div class="container dash">
     <aside class="side" aria-label="Menu admin">
+      <a href="#pengaturan" data-sec="pengaturan"><i data-i="settings"></i>Pengaturan</a>
       <a href="#kategori" data-sec="kategori"><i data-i="list-checks"></i>Kategori Event</a>
       <a href="#pengguna" data-sec="pengguna"><i data-i="users"></i>Pengguna</a>
       <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Semua Meeting</a>
@@ -20,6 +21,12 @@
     </aside>
     <div>
       <div class="stats" id="overview" hidden></div>
+
+      <section data-panel="pengaturan" hidden>
+        <div class="dash-head"><h1>Pengaturan</h1></div>
+        <p class="ev-meta">Menentukan siapa yang boleh membuat meeting dan event. Dosen, staf, dan admin selalu boleh &mdash; tidak terpengaruh pengaturan di bawah.</p>
+        <div id="settings"></div>
+      </section>
 
       <section data-panel="kategori" hidden>
         <div class="dash-head">

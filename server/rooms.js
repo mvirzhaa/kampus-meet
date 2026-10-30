@@ -10,6 +10,7 @@ import { roomCode, numericPassword, randomToken, safeEqual, limiters, clean, cle
 import { openPresence, closePresence, closeAllPresence, isOnline, presenceSessions, presenceReport } from './presence.js';
 import { normalizeEventPw } from './events.js';
 import { startServerRecording, stopServerRecording, onEgressWebhook, recordingActive, registerRecordingRoutes } from './recordings.js';
+import { assertCanCreate } from './admin.js';
 
 export const uploadsDir = path.join(config.dataDir, 'uploads');
 fs.mkdirSync(uploadsDir, { recursive: true });
@@ -225,7 +226,7 @@ export function registerRoomRoutes(r) {
   });
 
   r.post('/api/rooms', async (req, res) => {
-    const u = requireUser(req); requireCsrf(req);
+    const u = assertCanCreate(req, 'meeting'); requireCsrf(req);
     const count = q('SELECT COUNT(*) AS n FROM rooms WHERE owner_id = ?').get(u.id).n;
     if (count >= 200) throw new HttpError(400, 'Batas 200 room per akun tercapai. Hapus room lama.');
     const room = createRoomRecord(u.id, await readJson(req));

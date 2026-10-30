@@ -10,6 +10,25 @@ if (me.user) location.replace(next);
 const err = $('#auth-err');
 const showErr = (m) => { err.textContent = m; err.hidden = !m; };
 
+// Pesan kegagalan SSO. Callback hanya mengirim KODE lewat URL, tidak teks bebas —
+// teks bebas di URL bisa dipakai memalsukan peringatan yang terlihat resmi.
+const SSO_ERR = {
+  expired: 'Tautan masuk dari E-Portal sudah kedaluwarsa. Silakan buka E-Portal lalu klik menu Meet lagi.',
+  invalid: 'Tautan masuk dari E-Portal tidak valid. Silakan buka E-Portal lalu klik menu Meet lagi.',
+  inactive: 'Akun E-Portal Anda sedang nonaktif. Hubungi admin E-Portal.',
+  noaccess: 'Akun Anda belum diberi akses ke modul Meet di E-Portal. Hubungi admin E-Portal.',
+  down: 'Layanan E-Portal sedang tidak dapat dihubungi. Coba lagi nanti, atau masuk dengan akun lokal di bawah.',
+  config: 'Konfigurasi SSO aplikasi ini bermasalah. Hubungi admin UIKA Meet.',
+  off: 'Masuk lewat E-Portal belum diaktifkan di aplikasi ini.',
+};
+const ssoCode = params.get('sso');
+if (ssoCode) {
+  showErr(SSO_ERR[ssoCode] || SSO_ERR.invalid);
+  // Bersihkan dari URL agar pesan tidak muncul lagi saat halaman dimuat ulang
+  history.replaceState(null, '', location.pathname);
+}
+
+
 function setTab(tab) {
   for (const b of $$('.tabs button')) b.classList.toggle('active', b.dataset.tab === tab);
   $('#f-login').hidden = tab !== 'login';

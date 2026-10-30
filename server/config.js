@@ -25,6 +25,17 @@ export const config = {
   // diturunkan/dinonaktifkan oleh siapa pun (termasuk admin lain).
   adminEmail: env('ADMIN_EMAIL', '').toLowerCase(),
 
+  // SSO E-Portal UIKA. Alur: eportal menerbitkan token ber-scope lalu mengarahkan ke
+  // /sso/callback kita; token itu ditukar identitas lewat POST {baseUrl}/api/sso/introspect.
+  // Token ditandatangani HS256 dengan rahasia milik eportal, jadi TIDAK bisa - dan tidak
+  // boleh - diverifikasi lokal: selalu lewat introspect.
+  sso: {
+    baseUrl: env('SSO_BASE_URL', '').replace(/\/$/, ''),
+    clientId: env('SSO_CLIENT_ID', ''),
+    clientSecret: env('SSO_CLIENT_SECRET', ''),
+    moduleId: env('SSO_APP_MODULE_ID', ''),
+  },
+
   dataDir: path.resolve(root, env('DATA_DIR', 'data')),
   maxUploadMb: int('MAX_UPLOAD_MB', 30),
   sessionDays: int('SESSION_DAYS', 7),
@@ -78,6 +89,8 @@ export const config = {
 };
 
 config.egressApiUrl ||= config.livekit.url;
+// SSO dianggap aktif hanya bila ketiga nilai wajibnya terisi
+config.sso.enabled = !!(config.sso.baseUrl && config.sso.clientId && config.sso.clientSecret);
 if (!['egress', 'local', 'off'].includes(config.recording.mode)) config.recording.mode = 'local';
 
 if (config.isProd) {

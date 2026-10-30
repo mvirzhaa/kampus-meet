@@ -185,6 +185,11 @@ for (const sql of [
   'ALTER TABLE event_regs ADD COLUMN last_leave INTEGER',
   // active = bisa login; disabled = diblokir admin (sesi aktifnya ikut dicabut)
   "ALTER TABLE users ADD COLUMN status TEXT NOT NULL DEFAULT 'active'",
+  // SSO E-Portal. sso_id = UUID stabil dari eportal (email & nama bisa berubah, ini tidak).
+  // institutional_role menentukan gerbang "boleh membuat" (lihat server/admin.js).
+  'ALTER TABLE users ADD COLUMN sso_id TEXT',
+  'ALTER TABLE users ADD COLUMN institutional_role TEXT',
+  'ALTER TABLE users ADD COLUMN sso_linked_at INTEGER',
   // Password event opsional (terenkripsi), penanda tangan sertifikat, dan sponsor
   'ALTER TABLE events ADD COLUMN password_enc TEXT',
   "ALTER TABLE events ADD COLUMN signer_name TEXT NOT NULL DEFAULT ''",
@@ -199,6 +204,9 @@ for (const sql of [
   'ALTER TABLE transcripts ADD COLUMN bo INTEGER NOT NULL DEFAULT 0',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
+
+// Satu identitas SSO hanya boleh menempel ke satu akun lokal
+try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_sso ON users(sso_id) WHERE sso_id IS NOT NULL'); } catch { /* sudah ada */ }
 
 const cache = new Map();
 /** Prepared statement yang di-cache. */

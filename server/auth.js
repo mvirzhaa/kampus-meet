@@ -2,6 +2,7 @@ import { config } from './config.js';
 import { q, now } from './db.js';
 import { HttpError, json, readJson, setCookie, parseCookies, clientIp } from './http.js';
 import { hashPassword, verifyPassword, dummyVerify, randomToken, sha256, safeEqual, limiters, clean, isEmail, passwordProblem } from './security.js';
+import { userScope, createFlag } from './admin.js';
 
 const COOKIE = config.isProd ? '__Host-km_sid' : 'km_sid';
 
@@ -46,7 +47,7 @@ export function requireCsrf(req) {
   if (!s || !safeEqual(req.headers['x-csrf-token'], s.csrf)) throw new HttpError(403, 'Token CSRF tidak valid. Muat ulang halaman.');
 }
 
-async function createSession(req, res, userId) {
+export async function createSession(req, res, userId) {
   const token = randomToken(32);
   const csrf = randomToken(24);
   q('INSERT INTO sessions (id, user_id, csrf, expires_at, created_at, ua) VALUES (?,?,?,?,?,?)')
@@ -63,10 +64,20 @@ function rate(limiter, key) {
 export function registerAuthRoutes(r) {
   r.get('/api/me', (req, res) => {
     const s = getSession(req);
+    // Hak "boleh membuat" ikut dikirim agar tombol Buat Meeting/Event bisa disembunyikan,
+    // bukan ditampilkan lalu ditolak server. Penegakan sebenarnya tetap di server.
+    let can = null;
+    if (s) {
+      const scope = s.role === 'admin' ? 'staff' : userScope(s.uid);
+      can = scope === 'staff'
+        ? { meeting: true, event: true }
+        : { meeting: createFlag(`allow_${scope}_meeting`), event: createFlag(`allow_${scope}_event`) };
+    }
     json(res, 200, {
       user: s ? { id: s.uid, email: s.email, name: s.name, role: s.role, superAdmin: isSuperAdmin(s.email) } : null,
+      can,
       csrf: s?.csrf || null,
-      app: { name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains },
+      app: { name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains, sso: config.sso.enabled },
     });
   });
 
