@@ -23,7 +23,7 @@ const pages = [
   [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'], [/^\/admin\/?$/, 'admin.html'],
   [/^\/j\/[a-z-]{6,20}\/?$/, 'join.html'], [/^\/r\/[a-z-]{6,20}\/?$/, 'room.html'], [/^\/rec\/[a-z-]{6,20}\/?$/, 'room.html'],
   [/^\/event\/?$/, 'events.html'], [/^\/event\/[\w-]{3,80}\/?$/, 'event.html'],
-  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'],
+  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'], [/^\/m\/pres\/?$/, 'mpres.html'],
 ];
 
 const server = http.createServer(async (req, res) => {
@@ -44,6 +44,14 @@ const server = http.createServer(async (req, res) => {
       return;
     }
     if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Metode tidak diizinkan.');
+    // Android App Links: membuktikan domain ini milik aplikasi, sehingga tautan undangan langsung terbuka di aplikasi
+    if (pathname === '/.well-known/assetlinks.json') {
+      if (!config.android.certSha256.length) throw new HttpError(404, 'Not found');
+      const body = JSON.stringify([{ relation: ['delegate_permission/common.handle_all_urls'],
+        target: { namespace: 'android_app', package_name: config.android.package, sha256_cert_fingerprints: config.android.certSha256 } }]);
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600', 'Content-Length': Buffer.byteLength(body) });
+      return res.end(req.method === 'HEAD' ? undefined : body);
+    }
     for (const [re, file] of pages) if (re.test(pathname)) return sendHtml(req, res, file);
     if (serveStatic(req, res, pathname)) return;
     res.statusCode = 404;

@@ -189,6 +189,17 @@ export function registerRecordingRoutes(r, { ownedRoom }) {
       gdrive: { configured: drive.driveConfigured(), connected: drive.driveConnected(), email: drive.driveAccount(), folderId: config.google.driveFolderId || null, error: getSetting('gdrive_error'), redirectUri: drive.redirectUri() },
       queue: q("SELECT status, COUNT(*) AS n FROM recordings GROUP BY status").all(),
     };
+    // Server terjemahan (LibreTranslate): dipakai peserta Safari/Firefox/HP yang browsernya tidak punya penerjemah bawaan
+    out.translate = { configured: !!config.translate.url, url: config.translate.url || null, ok: false, languages: [] };
+    if (config.translate.url) {
+      try {
+        const r = await fetch(config.translate.url + '/languages', { signal: AbortSignal.timeout(4000) });
+        const langs = r.ok ? await r.json() : [];
+        out.translate.languages = Array.isArray(langs) ? langs.map(l => l.code).filter(Boolean) : [];
+        out.translate.ok = out.translate.languages.includes('id') && out.translate.languages.includes('en');
+        if (!out.translate.ok) out.translate.error = r.ok ? 'Model bahasa Indonesia/English belum tersedia (tunggu unduhan model selesai).' : `HTTP ${r.status}`;
+      } catch (e) { out.translate.error = e.name === 'TimeoutError' ? 'Tidak merespons' : e.message; }
+    }
     if (out.gdrive.connected) {
       try { const f = await drive.folderInfo(); out.gdrive.folder = { name: f.name, link: f.webViewLink, canAdd: f.capabilities?.canAddChildren !== false }; }
       catch (e) { out.gdrive.folderError = e.message; }

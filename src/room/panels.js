@@ -504,10 +504,10 @@ export function initPanels() {
   syncNavBtn();
   $('#toggle-nav').addEventListener('click', () => {
     const a = app();
-    if (a.classList.contains('nav-hidden')) {
-      a.classList.remove('nav-hidden');
-      if (innerWidth > 520) openPanel(current || 'chat');
-    } else a.classList.add('nav-hidden', 'panel-hidden');
+    // Tombol ☰ hanya menampilkan daftar menu (chat, catatan, transkrip, pengguna);
+    // panel isi baru terbuka saat salah satu menu dipilih.
+    if (a.classList.contains('nav-hidden')) { closePanel(); a.classList.remove('nav-hidden'); }
+    else a.classList.add('nav-hidden', 'panel-hidden');
     syncNavBtn();
   });
   new MutationObserver(syncNavBtn).observe(app(), { attributes: true, attributeFilter: ['class'] });

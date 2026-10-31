@@ -117,9 +117,10 @@
     <div class="bo-ann" id="bo-ann" hidden role="alert"></div>
 
     <div class="cams" id="cams" hidden>
-      <button class="cam-page prev" id="cam-prev" aria-label="Kamera sebelumnya" hidden><i data-i="chevron-left"></i></button>
+      <button class="cam-page prev" id="cam-prev" aria-label="Peserta sebelumnya" hidden><i data-i="chevron-left"></i></button>
       <div class="cam-grid" id="cam-grid"></div>
-      <button class="cam-page next" id="cam-next" aria-label="Kamera berikutnya" hidden><i data-i="chevron-right"></i></button>
+      <button class="cam-page next" id="cam-next" aria-label="Peserta berikutnya" hidden><i data-i="chevron-right"></i></button>
+      <span class="cam-pages" id="cam-pages" hidden></span>
     </div>
 
     <div class="main-area" id="main-area">
@@ -207,9 +208,16 @@
         <div class="dropdown up"><button class="ctl-btn" id="btn-react" aria-label="Reaksi"><i data-i="smile" data-s="22"></i></button>
           <div class="dropdown-menu dropdown-right dark-dd up-menu react-menu" id="react-menu"></div></div>
         <button class="ctl-btn" id="btn-hand" aria-label="Angkat tangan"><i data-i="hand" data-s="22"></i></button>
-        <button class="ctl-btn" id="btn-layout" aria-label="Tampilkan/sembunyikan presentasi"><i data-i="presentation" data-s="22"></i></button>
+        <div class="dropdown up"><button class="ctl-btn" id="btn-layout" aria-label="Tata letak tampilan" title="Tata letak tampilan"><i data-i="grid" data-s="22"></i></button>
+          <div class="dropdown-menu dropdown-right dark-dd up-menu layout-menu" id="layout-menu">
+            <button type="button" data-layout="stage"><i data-i="presentation" data-s="16"></i><span>Presentasi + strip peserta</span><i data-i="check" data-s="16" class="chk"></i></button>
+            <button type="button" data-layout="gallery"><i data-i="grid" data-s="16"></i><span>Galeri semua peserta</span><i data-i="check" data-s="16" class="chk"></i></button>
+            <button type="button" data-layout="focus"><i data-i="maximize" data-s="16"></i><span>Presentasi saja</span><i data-i="check" data-s="16" class="chk"></i></button>
+          </div></div>
+        <button class="ctl-btn ctl-pin" id="btn-pin-controls" type="button" aria-label="Sembunyikan otomatis bilah kontrol" title="Bilah kontrol: sembunyikan otomatis"><i data-i="chevron-down" data-s="20"></i></button>
       </div>
     </footer>
+    <button class="controls-peek" id="controls-peek" type="button" aria-label="Tampilkan bilah kontrol" title="Tampilkan bilah kontrol" hidden><i data-i="chevron-up" data-s="18"></i></button>
   </main>
 </div>
 

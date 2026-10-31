@@ -2,9 +2,11 @@
 import { h, icon, toast, modal, confirmDialog } from '../shared/common.js';
 import { store, on, emit, canPresent, isPresenter, meetApi, nameOf } from './store.js';
 import { send, str } from './bus.js';
+import { drawShape as drawShapeAt } from '../shared/wbdraw.js';
 
 const $ = (s) => document.querySelector(s);
 const DPR = () => Math.min(2, devicePixelRatio || 1);
+const drawShape = (ctx, s, W, H) => drawShapeAt(ctx, s, W, H, DPR());
 let pdfjs = null;
 const docs = new Map();   // presId -> Promise<PDFDocumentProxy>
 const shapes = new Map(); // "presKey:page" -> shape[]
@@ -116,32 +118,6 @@ function updateBar() {
 }
 
 // ---------- Gambar anotasi ----------
-function drawShape(ctx, s, W, H) {
-  ctx.strokeStyle = ctx.fillStyle = s.c; ctx.lineWidth = s.w * DPR() * (W / DPR() / 900 + 0.4);
-  ctx.lineCap = ctx.lineJoin = 'round';
-  const P = s.p; const X = (i) => P[i] * W; const Y = (i) => P[i + 1] * H;
-  if (s.k === 'pen') {
-    ctx.beginPath(); ctx.moveTo(X(0), Y(0));
-    for (let i = 2; i < P.length; i += 2) ctx.lineTo(X(i), Y(i));
-    if (P.length === 2) ctx.lineTo(X(0) + 0.1, Y(0));
-    ctx.stroke();
-  } else if (s.k === 'rect') { ctx.strokeRect(X(0), Y(0), X(2) - X(0), Y(2) - Y(0)); }
-  else if (s.k === 'ellipse') {
-    ctx.beginPath(); ctx.ellipse((X(0) + X(2)) / 2, (Y(0) + Y(2)) / 2, Math.abs(X(2) - X(0)) / 2, Math.abs(Y(2) - Y(0)) / 2, 0, 0, Math.PI * 2); ctx.stroke();
-  } else if (s.k === 'line' || s.k === 'arrow') {
-    ctx.beginPath(); ctx.moveTo(X(0), Y(0)); ctx.lineTo(X(2), Y(2)); ctx.stroke();
-    if (s.k === 'arrow') {
-      const a = Math.atan2(Y(2) - Y(0), X(2) - X(0)); const len = ctx.lineWidth * 4 + 8;
-      ctx.beginPath(); ctx.moveTo(X(2), Y(2));
-      ctx.lineTo(X(2) - len * Math.cos(a - 0.45), Y(2) - len * Math.sin(a - 0.45));
-      ctx.lineTo(X(2) - len * Math.cos(a + 0.45), Y(2) - len * Math.sin(a + 0.45));
-      ctx.closePath(); ctx.fill();
-    }
-  } else if (s.k === 'text') {
-    ctx.font = `600 ${Math.max(8, s.fs * H)}px Inter, Segoe UI, Arial`; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-    s.tx.split('\n').forEach((line, i) => ctx.fillText(line, X(0), Y(0) + i * s.fs * H * 1.25));
-  }
-}
 function drawShapes() {
   const c = $('#wb-canvas'); const ctx = c.getContext('2d');
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height);

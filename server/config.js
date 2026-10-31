@@ -58,6 +58,18 @@ export const config = {
     url: env('TRANSLATE_URL', '').replace(/\/$/, ''),
     apiKey: env('TRANSLATE_API_KEY', ''),
   },
+  // Aplikasi Android: tautan /j/… dan /r/… di HP diarahkan ke aplikasi lebih dulu.
+  // ANDROID_CERT_SHA256 = sidik jari SHA-256 sertifikat penanda tangan APK (pisahkan dengan koma) untuk
+  // /.well-known/assetlinks.json (Android App Links: tautan langsung terbuka di aplikasi tanpa lewat Chrome).
+  android: {
+    openApp: bool('ANDROID_OPEN_APP', true),
+    package: env('ANDROID_PACKAGE', 'id.ac.uikabogor.meet'),
+    // Format bebas (dengan/tanpa titik dua) → dinormalkan menjadi AA:BB:…
+    certSha256: env('ANDROID_CERT_SHA256', '').split(',').map(s => s.replace(/[^0-9a-f]/gi, '').toUpperCase())
+      .filter(s => s.length === 64).map(s => s.match(/../g).join(':')),
+    // Opsional: alamat unduhan APK, ditampilkan bila aplikasi belum terpasang
+    downloadUrl: env('ANDROID_APP_URL', ''),
+  },
   // Sertifikat hanya untuk peserta dengan durasi (masuk pertama → keluar terakhir) minimal sekian menit
   certMinMinutes: int('CERT_MIN_MINUTES', 15),
   recording: {

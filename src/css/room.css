@@ -389,3 +389,54 @@ input[type=range] { padding: 0; accent-color: #047857; }
 /* Fitur milik ruang utama disembunyikan di ruang kelompok */
 .in-bo #m-breakout, .in-bo #m-end, .in-bo #tr-toggle, .in-bo .t-spot, .in-bo .pres-only, .in-bo #rec-btn { display: none !important; }
 .rec-mode .bo-bar, .rec-mode .bo-ann { display: none !important; }
+
+/* ---------- Bilah kontrol melayang + sembunyi otomatis ---------- */
+.stage.ctl-float .controls {
+  position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 20;
+  padding: 8px 12px; border-radius: 16px;
+  background: rgba(4, 22, 17, .95); border: 1px solid rgba(110, 231, 183, .16);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .45);
+  transition: opacity .25s ease, transform .25s ease, visibility .25s;
+}
+/* Saat presentasi tampil, bilah melayang di atas baris navigasi slide agar tombol slide tidak tertutup */
+.stage.ctl-float:has(#main-area:not([hidden]) #pres-view:not([hidden])) .controls { bottom: 50px; }
+.stage.ctl-float.ctl-hide .controls { opacity: 0; visibility: hidden; transform: translateY(24px); pointer-events: none; }
+.stage.ctl-float .dropdown.up .up-menu { bottom: calc(100% + 14px); }
+.stage.ctl-float:not(.ctl-hide) .captions { bottom: 96px; }
+.stage.ctl-float:not(.ctl-hide):has(#pres-view:not([hidden])) .captions { bottom: 92px; }
+.captions { transition: bottom .25s ease; }
+.controls-peek {
+  position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); z-index: 19;
+  width: 56px; height: 22px; border-radius: 11px; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(3, 20, 15, .7); color: #cfe9de; display: grid; place-items: center; cursor: pointer;
+  opacity: .55; transition: opacity .15s, background .15s;
+}
+.controls-peek:hover, .controls-peek:focus-visible { opacity: 1; background: #047857; color: #fff; }
+.controls-peek[hidden] { display: none; }
+.stage.ctl-float:has(#main-area:not([hidden]) #pres-view:not([hidden])) .controls-peek { bottom: 46px; }
+.ctl-pin { width: 34px !important; height: 34px !important; border-color: rgba(201, 212, 227, .45) !important; }
+.ctl-pin svg { width: 18px; height: 18px; }
+.rec-mode .controls-peek { display: none !important; }
+
+/* Menu tata letak */
+.layout-menu { min-width: 280px; }
+.layout-menu button span { white-space: nowrap; }
+.layout-menu button { display: flex; align-items: center; gap: 10px; }
+.layout-menu button span { flex: 1; text-align: left; }
+.layout-menu .chk { visibility: hidden; color: #047857; }
+.layout-menu button.active { color: #047857; font-weight: 600; }
+.layout-menu button.active .chk { visibility: visible; }
+
+/* Strip peserta: avatar untuk kamera mati, panah geser kiri/kanan, penanda halaman */
+.cams { position: relative; }
+.cam-page { transition: background .15s; }
+.cam-page:hover { background: #047857; }
+.cam-page[hidden] { visibility: hidden; display: grid; pointer-events: none; }
+.cams.grid .cam-page[hidden] { display: none; }
+.cam-pages { position: absolute; right: 52px; bottom: 2px; font-size: 11px; color: #9dbcae; background: rgba(0, 0, 0, .45); padding: 1px 7px; border-radius: 8px; font-variant-numeric: tabular-nums; pointer-events: none; }
+.cams.grid .cam-pages { bottom: 10px; right: 60px; }
+.cam-pages[hidden] { display: none; }
+.cams:not(.grid) .tile .t-av span { width: 46px; height: 46px; font-size: 17px; }
+.tile .t-av { background: radial-gradient(circle at 50% 40%, #12382c, #0a2219 70%); }
+.cams.grid .tile .t-av span { width: clamp(56px, calc(var(--tw, 320px) / 4.5), 110px); height: clamp(56px, calc(var(--tw, 320px) / 4.5), 110px); font-size: clamp(20px, calc(var(--tw, 320px) / 12), 40px); }

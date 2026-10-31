@@ -157,9 +157,24 @@ async function loadIntegrations() {
   if (gq) { toast({ ok: 'Google Drive berhasil dihubungkan', ditolak: 'Izin Google dibatalkan', state: 'Sesi tidak valid, coba lagi', gagal: 'Gagal menghubungkan Google Drive' }[gq] || gq, gq === 'ok' ? 'success' : 'error', 6000); history.replaceState(null, '', '/dashboard#integrasi'); }
   let d;
   try { d = await api('GET', '/api/admin/integrations'); } catch (e) { box.replaceChildren(emptyState(e.message)); return; }
-  const g = d.gdrive;
+  const g = d.gdrive; const t = d.translate || {};
   const row = (k, v) => h('tr', {}, h('th', { text: k, style: { width: '34%' } }), h('td', {}, v));
-  box.replaceChildren(
+  const trCard = h('div', { class: 'section-card' }, h('h3', { text: 'Terjemahan transkrip' }),
+    h('table', { class: 'tbl' }, h('tbody', {},
+      row('Chrome & Edge (laptop/PC)', 'Diterjemahkan di perangkat peserta (tanpa server)'),
+      row('Aplikasi Android', 'Diterjemahkan di perangkat (Google ML Kit)'),
+      row('Safari, Firefox, browser HP', t.ok ? h('span', { class: 'pill green', text: 'Server terjemahan kampus aktif' })
+        : t.configured ? h('span', { class: 'pill red', text: `Server terjemahan bermasalah: ${t.error || 'tidak diketahui'}` })
+        : h('span', { class: 'pill red', text: 'Hanya menerima terjemahan yang dibagikan pembicara/moderator' })),
+      t.configured ? row('TRANSLATE_URL', h('code', { text: t.url })) : null)),
+    t.ok ? null : h('div', { class: 'tr-setup' },
+      h('b', { text: 'Agar terjemahan selalu tersedia di Safari & Firefox, aktifkan server terjemahan kampus:' }),
+      h('ol', {},
+        h('li', {}, 'Jalankan di server: ', h('code', { text: 'docker compose -f deploy/docker-compose.yml --profile translate --env-file .env up -d' })),
+        h('li', {}, 'Isi ', h('code', { text: 'TRANSLATE_URL=http://127.0.0.1:5000' }), ' di .env, lalu restart aplikasi.'),
+        h('li', {}, 'Muat ulang halaman ini; status di atas berubah menjadi hijau setelah model bahasa selesai diunduh (±1–3 menit saat pertama kali).')),
+      h('p', { text: 'Setiap kalimat diterjemahkan sekali oleh server lalu dibagikan ke semua peserta, jadi bebannya ringan walau pesertanya ratusan.' })));
+  box.replaceChildren(trCard,
     h('div', { class: 'section-card' }, h('h3', { text: 'Perekaman' }),
       h('table', { class: 'tbl' }, h('tbody', {},
         row('Mode', d.recordingMode === 'egress' ? 'Server (LiveKit Egress) → Google Drive' : d.recordingMode === 'local' ? 'Browser moderator (file diunduh ke komputer)' : 'Nonaktif'),
@@ -268,7 +283,7 @@ async function categorySelect(selected) {
 
 const PW_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // tanpa 0/O dan 1/I agar tidak tertukar
 const randomEventPw = () => Array.from(crypto.getRandomValues(new Uint8Array(6)), b => PW_CHARS[b % PW_CHARS.length]).join('');
-const SPONSOR_POS = { tl: 'Kiri atas', tr: 'Kanan atas', br: 'Kanan bawah — "Didukung oleh"' };
+const SPONSOR_POS = { tl: ['Kiri atas'], tr: ['Kanan atas'], br: ['Kanan bawah', 'Di bawah tulisan "Didukung oleh"'] };
 
 async function eventForm(ev) {
   const now = Math.floor(Date.now() / 1000);
@@ -306,7 +321,7 @@ async function eventForm(ev) {
       input.value = ''; drawThumbs(pos);
     } });
     drawThumbs(pos);
-    return h('div', { class: 'sp-row' }, h('div', { class: 'sp-label' }, h('b', { text: label })), thumbs[pos],
+    return h('div', { class: 'sp-row' }, h('div', { class: 'sp-label' }, h('b', { text: label[0] }), label[1] ? h('small', { text: label[1] }) : null), thumbs[pos],
       h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: () => input.click() }, icon('upload', 15), 'Tambah logo'), input);
   }));
   const syncSp = () => { spRows.hidden = !spOn.checked; };

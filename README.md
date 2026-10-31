@@ -26,11 +26,48 @@ Nama aplikasi, nama kampus, dan domain email bisa diganti lewat `.env` (`APP_NAM
   dan menerima permintaan bantuan dari dalam ruang. Pembagian bertahan bila server di-restart.
 - Menu moderator: matikan mikrofon semua (atau kecuali presenter), **Kunci peserta (lock viewers)** — kamera, melihat kamera lain, mikrofon, chat publik, chat privat, catatan, daftar pengguna — turunkan semua tangan, simpan daftar nama.
 - Berbagi layar (presenter/moderator), angkat tangan, reaksi emoji, status koneksi, timer, layar penuh, pintasan keyboard, akhiri meeting untuk semua.
+- **Bilah kontrol melayang** yang tersembunyi otomatis (muncul saat kursor ke bagian bawah, saat layar disentuh, atau lewat tombol ˄); bisa disematkan agar selalu tampil.
+- **Strip peserta** di atas presentasi: semua peserta tampil (avatar bila kamera mati) dengan panah geser kiri/kanan. Menu **Tata letak**: *Presentasi + strip peserta*, *Galeri semua peserta* (tombol G), atau *Presentasi saja*.
 - **Transkripsi otomatis (Bahasa Indonesia / English)** dengan nama pembicara: teks langsung (CC) di layar, panel Transkrip, dan notulen tersimpan per sesi di Dasbor (lihat, salin, unduh TXT, hapus).
 - **Rekam di server** (LiveKit Egress): MP4 H.264 **720p 15 fps** (±0,4 GB/jam) berisi presentasi/whiteboard, layar, kamera, suara, dan teks CC; otomatis diunggah ke **folder Google Drive** (satu subfolder per rekaman), lalu dihapus dari server. Status & tautan di Dasbor → Rekaman. Mode cadangan `RECORDING_MODE=local` merekam di browser moderator.
 - **Presensi otomatis**: setiap masuk/keluar tercatat; laporan per sesi berisi masuk pertama, keluar terakhir, durasi (keluar terakhir − masuk pertama), waktu aktif, jumlah masuk — unduh **Excel (.xlsx)** atau **PDF**.
 - **Sertifikat** hanya untuk peserta dengan durasi minimal **15 menit** (`CERT_MIN_MINUTES`).
 - Responsif untuk ponsel.
+
+## Aplikasi Android
+
+Folder `mobile/` berisi aplikasi Android (React Native + Expo). Aplikasi ini memakai server yang sama dan menyediakan:
+
+- meeting dengan tampilan ala Zoom mobile, termasuk **presentasi PDF + whiteboard** (dirender lewat halaman `/m/pres`);
+- **berbagi layar HP** (moderator/presenter), tombol **mulai rekam** & **mulai transkripsi** untuk moderator;
+- transkripsi + terjemahan Indonesia ⇄ Inggris di perangkat;
+- pengingat azan 5 waktu.
+
+**Tautan meeting di HP Android dibuka di aplikasi lebih dulu.** Halaman gabung (`/j/…`) di Chrome Android otomatis mencoba membuka aplikasi; bila belum terpasang, peserta tetap lanjut di browser. Agar tautan dari WhatsApp/email langsung terbuka di aplikasi tanpa lewat Chrome (Android App Links), isi `ANDROID_CERT_SHA256` di `.env` dengan sidik jari SHA-256 sertifikat penanda tangan APK (`keytool -printcert -jarfile uika-meet.apk`), lalu pasang ulang aplikasinya. Server menyajikannya di `/.well-known/assetlinks.json`. Opsional: `ANDROID_APP_URL` = link unduhan APK yang ditampilkan di halaman gabung.
+
+APK dibangun otomatis lewat GitHub Actions (`.github/workflows/android-apk.yml`). Panduan lengkapnya ada di `mobile/README.md`.
+
+Tanpa keystore rilis, APK ditandatangani dengan kunci debug Expo &mdash; cukup untuk
+pemasangan manual, tidak untuk Play Store. Untuk kunci sendiri, isi secret
+`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan
+`ANDROID_KEY_PASSWORD` di **Settings &rarr; Secrets and variables &rarr; Actions**.
+
+Build hanya menghasilkan arsitektur `arm64-v8a` (lihat `.github/workflows/android-apk.yml`).
+Itu memperkecil APK secara signifikan, tetapi **HP Android 32-bit tidak bisa memasangnya** &mdash;
+Android menampilkannya sebagai "aplikasi tidak kompatibel" tanpa penjelasan. Bila ada laporan
+semacam itu, tambahkan kembali `armeabi-v7a` pada `-PreactNativeArchitectures`.
+
+> **Aplikasi mobile belum mendukung SSO E-Portal.** Ia hanya memakai form email dan
+> password. Civitas yang akunnya hanya ada di E-Portal (tanpa password lokal) belum bisa
+> masuk lewat aplikasi; mereka perlu memakai versi web.
+
+## Notifikasi azan (web)
+
+Situs dan ruang meeting menampilkan pengingat saat masuk waktu salat 5 waktu (wilayah Jakarta, WIB; parameter Kemenag RI), lalu memutar takbir pembuka azan.
+
+Unggah rekaman takbir (MP3/M4A/OGG/WAV, maks. 3 MB) di **Panel Admin → Notifikasi Azan**. Selama belum ada rekaman, yang terdengar adalah bunyi lonceng lembut.
+
+Setiap pengguna dapat mengatur pengingatnya lewat tautan **Jadwal Salat & Azan** di footer, atau lewat menu ⋮ di ruang meeting.
 
 ## Arsitektur (fokus: ringan di server)
 
@@ -265,26 +302,6 @@ Pengamannya: **Panel Admin → Pengguna** menandai akun semacam itu dengan label
 memeriksanya. Bila ingin menutup celahnya sepenuhnya, pilihannya: larang pendaftaran lokal
 dengan email `@uika-bogor.ac.id`, atau matikan password lokal pada akun yang tertaut SSO.
 
-## Aplikasi Android
-
-Ada di `mobile/` (React Native + Expo SDK 58), memakai server, akun, room, dan event yang
-sama dengan versi web. Lihat `mobile/README.md` untuk daftar fitur dan catatan sebelum
-membangun (termasuk mengganti berkas suara azan).
-
-APK dibangun otomatis di GitHub Actions, bukan di mesin lokal:
-
-1. Push ke GitHub, lalu buka tab **Actions** → **Android APK** → **Run workflow**.
-2. Tunggu sampai selesai, lalu unduh APK dari bagian **Artifacts** di halaman run tersebut.
-
-Tanpa keystore rilis, APK ditandatangani dengan kunci debug Expo — cukup untuk pemasangan
-manual, tidak untuk Play Store. Untuk kunci sendiri, isi secret `ANDROID_KEYSTORE_BASE64`,
-`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD` di
-**Settings → Secrets and variables → Actions**.
-
-> **Aplikasi mobile belum mendukung SSO E-Portal.** Ia hanya memakai form email dan
-> password. Civitas yang akunnya hanya ada di E-Portal (tanpa password lokal) belum bisa
-> masuk lewat aplikasi; mereka perlu memakai versi web. Lihat catatan di bawah.
-
 ## Mengatasi "Gagal terhubung ke server media"
 
 Halaman ruang terbuka dan spinner *Menghubungkan ke meeting…* berputar lalu gagal → halaman aplikasi
@@ -391,6 +408,7 @@ deploy/        docker-compose.yml, Caddyfile, *.template.yaml (sumber konfiguras
 
 ## Catatan & batasan
 
+- **Terjemahan di Safari & Firefox.** Kedua browser ini tidak punya penerjemah bawaan (Translator API hanya ada di Chrome/Edge; Mozilla menolak API ini, WebKit belum bersikap). Peserta Safari/Firefox tetap menerima terjemahan yang dibagikan pembicara/moderator yang memakai Chrome, Edge, atau aplikasi HP. Agar selalu tersedia, aktifkan server terjemahan kampus (LibreTranslate, sudah ada di `docker-compose.yml`): `docker compose -f deploy/docker-compose.yml --profile translate --env-file .env up -d`, isi `TRANSLATE_URL=http://127.0.0.1:5000`, restart aplikasi. Server menerjemahkan setiap kalimat **sekali** lalu membagikannya ke semua peserta. Statusnya terlihat di Dasbor → Integrasi. Panel transkrip kini dwibahasa: kalimat yang sudah berbahasa tujuan tetap disertai terjemahan lawannya.
 - **Transkripsi** memerlukan Chrome/Edge (desktop/Android) atau Safari di perangkat **pembicara**; peserta dengan browser lain tetap bisa membaca transkrip, tetapi ucapannya tidak tercatat. Di Chrome, audio pembicara diproses oleh layanan pengenal suara Google kecuali paket bahasa di perangkat tersedia (Chrome versi baru, dipakai otomatis). Setiap pembicara memilih satu bahasa (Indonesia atau English); kalimat campuran dikenali sesuai bahasa yang dipilih. Bila kampus mewajibkan audio tidak keluar dari server sendiri, fitur ini dapat diganti dengan server Whisper (butuh GPU) — tidak disertakan karena berat.
 
 - Dokumen Word/PowerPoint perlu disimpan sebagai **PDF** dulu (konversi Office di server sengaja tidak dipakai karena berat).

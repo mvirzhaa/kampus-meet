@@ -13,6 +13,9 @@ Aplikasi Android (React Native + Expo SDK 58) untuk UIKA Meet. Aplikasi ini mema
   - Bilah bawah berisi Bisukan, Video, Peserta, Chat, dan Lainnya. Ketuk layar untuk menyembunyikan bilah.
   - Ganti kamera depan/belakang, dan pilih audio keluaran (speaker, earpiece, headset, atau Bluetooth).
   - Angkat tangan, reaksi, chat, dan daftar peserta.
+  - **Presentasi & whiteboard**: geser ke halaman paling kiri. Slide PDF dan coretan whiteboard tampil sama seperti di web; tombol layar penuh bisa diperbesar dengan dua jari. Presenter/moderator bisa pindah slide dari HP.
+  - **Berbagi layar HP** (moderator/presenter): *Lainnya → Bagikan layar HP*. Android menampilkan dialog izin terlebih dahulu.
+  - **Mulai/Hentikan rekam** dan **Mulai/Hentikan transkripsi** untuk moderator di menu *Lainnya* (rekam di server hanya bila admin memakai `RECORDING_MODE=egress`).
   - Untuk moderator: bisukan semua, bisukan atau keluarkan peserta, dan akhiri meeting untuk semua.
   - Ruang kelompok (breakout): gabung ke ruang, kembali ke ruang utama, dan pindah otomatis bila dipindahkan moderator.
 - **Transkripsi & terjemahan Indonesia ⇄ Inggris**
@@ -88,7 +91,9 @@ Untuk mencoba langsung di ponsel lewat kabel USB: `npx expo run:android`.
 - **Model terjemahan.** Model ML Kit diunduh otomatis saat terjemahan pertama kali dipakai (sekali per pasangan bahasa).
 - **Pengingat azan tepat menit.** Di Android 14 ke atas, izinkan *Alarm & pengingat* untuk UIKA Meet di pengaturan aplikasi. Tanpa izin ini, notifikasi bisa terlambat beberapa menit.
 - **Mikrofon bersamaan.** Transkripsi memakai pengenal suara Android bersamaan dengan mikrofon meeting. Ini sudah didukung di Android 10 ke atas, tetapi sebaiknya diuji di beberapa merek ponsel yang dipakai sivitas. Bila transkrip tidak muncul di ponsel tertentu, peserta tetap bisa membaca teks & terjemahan dari pembicara lain.
-- **Presentasi/whiteboard PDF** tampil di versi web. Di aplikasi, muncul pemberitahuan saat moderator menampilkan presentasi. Berbagi layar dari web tetap tampil di aplikasi.
+- **Presentasi/whiteboard** dirender oleh halaman `https://<server>/m/pres` (pdf.js) di dalam WebView (`react-native-webview`). Data slide & coretan diteruskan aplikasi lewat postMessage; kursi meeting tidak pernah masuk ke URL.
+- **Berbagi layar** memakai MediaProjection dengan foreground service bawaan LiveKit (`enableScreenShareService` di `app.json`, izin `FOREGROUND_SERVICE_MEDIA_PROJECTION`).
+- **App Links**: `intentFilters` memakai `autoVerify`. Isi `ANDROID_CERT_SHA256` di `.env` server dengan sidik jari sertifikat APK agar tautan langsung terbuka di aplikasi.
 
 ## Struktur
 

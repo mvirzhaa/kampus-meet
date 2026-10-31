@@ -77,7 +77,11 @@ export function registerAuthRoutes(r) {
       user: s ? { id: s.uid, email: s.email, name: s.name, role: s.role, superAdmin: isSuperAdmin(s.email) } : null,
       can,
       csrf: s?.csrf || null,
-      app: { name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains, sso: config.sso.enabled },
+      app: {
+        name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains,
+        sso: config.sso.enabled,
+        android: config.android.openApp ? { package: config.android.package, downloadUrl: config.android.downloadUrl || null } : null,
+      },
     });
   });
 

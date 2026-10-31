@@ -2,7 +2,7 @@
 import { Track, RoomEvent, createLocalAudioTrack, createLocalVideoTrack, VideoPresets, ScreenSharePresets, ConnectionQuality } from 'livekit-client';
 import { h, icon, toast, modal, confirmDialog, copyText } from '../shared/common.js';
 import { store, on, emit, isMod, canPresent, meetApi, allParticipants, nameOf } from './store.js';
-import { canPublish, schedule, setPresVisible, isPresVisible, setSpeaker } from './media.js';
+import { canPublish, schedule, getLayout, setLayout, setSpeaker } from './media.js';
 import { setHand, react, REACTIONS, startPollModal, openPanel } from './panels.js';
 import { managePresentations, setBlank } from './presentation.js';
 import { BrightnessProcessor, backgroundProcessor, makeBackgrounds, allBackgrounds, customBackgrounds, addCustomBackground, removeCustomBackground } from './processors.js';
@@ -321,7 +321,7 @@ function infoModal() {
 }
 
 function shortcutsModal() {
-  const rows = [['M', 'Nyalakan/matikan mikrofon'], ['V', 'Nyalakan/matikan kamera'], ['H', 'Angkat/turunkan tangan'], ['C', 'Buka chat publik'], ['← / →', 'Slide sebelumnya/berikutnya (presenter)']];
+  const rows = [['M', 'Nyalakan/matikan mikrofon'], ['V', 'Nyalakan/matikan kamera'], ['H', 'Angkat/turunkan tangan'], ['C', 'Buka chat publik'], ['G', 'Galeri semua peserta / kembali ke presentasi'], ['← / →', 'Slide sebelumnya/berikutnya (presenter)']];
   modal({ title: 'Pintasan keyboard', body: h('table', { class: 'lock-table' }, h('tbody', {}, rows.map(([k, d]) => h('tr', {}, h('td', {}, h('span', { class: 'kbd', text: k })), h('td', { text: d, style: { textAlign: 'left' } }))))) });
 }
 
@@ -356,7 +356,11 @@ export function updateControls() {
   bS.hidden = !canPublish('screen_share') && !scr;
   bS.title = scr ? 'Hentikan berbagi layar' : 'Bagikan layar';
   const bH = $('#btn-hand'); bH.classList.toggle('warn', store.hands.has(store.identity)); bH.title = store.hands.has(store.identity) ? 'Turunkan tangan (H)' : 'Angkat tangan (H)';
-  const bL = $('#btn-layout'); bL.classList.toggle('on', isPresVisible()); bL.title = isPresVisible() ? 'Sembunyikan presentasi' : 'Tampilkan presentasi';
+  const lay = getLayout();
+  const bL = $('#btn-layout'); bL.classList.toggle('on', lay === 'gallery');
+  setIcon(bL, lay === 'gallery' ? 'grid' : lay === 'focus' ? 'maximize' : 'presentation');
+  bL.title = `Tata letak: ${{ stage: 'presentasi + strip peserta', gallery: 'galeri semua peserta', focus: 'presentasi saja' }[lay]}`;
+  for (const b of document.querySelectorAll('#layout-menu [data-layout]')) b.classList.toggle('active', b.dataset.layout === lay);
   const rb = $('#rec-btn'); const recOn = store.meta.recording;
   rb.classList.toggle('on', recOn);
   const serverRec = store.meta.recMode === 'egress';
@@ -372,6 +376,69 @@ function updateConn(q) {
   b.className = 'conn-btn ' + ({ [ConnectionQuality.Good]: 'good', [ConnectionQuality.Poor]: 'poor', [ConnectionQuality.Lost]: 'lost' }[q] || '');
 }
 
+// ==================== Bilah kontrol melayang (sembunyi otomatis) ====================
+// Bawaan: bilah kontrol melayang di atas panggung dan tersembunyi setelah 3 detik tanpa aktivitas,
+// sehingga presentasi/kamera memakai seluruh tinggi layar. Muncul lagi saat kursor diarahkan ke bagian
+// bawah, saat layar disentuh, atau lewat tombol ˄ kecil. Tombol sematkan membuat bilah selalu tampil.
+const CTL_KEY = 'km:controls';
+let ctlPinned = (() => { try { return localStorage.getItem(CTL_KEY) === 'pin'; } catch { return false; } })();
+let ctlTimer = 0;
+const stageEl = () => $('#stage');
+function showControls() {
+  const st = stageEl();
+  if (st.classList.contains('ctl-hide')) { st.classList.remove('ctl-hide'); $('#controls-peek').hidden = true; }
+  armHide();
+}
+function armHide(delay = 3000) { clearTimeout(ctlTimer); if (!ctlPinned) ctlTimer = setTimeout(tryHideControls, delay); }
+function tryHideControls() {
+  const c = $('#controls');
+  // Jangan sembunyikan saat kursor di atas bilah, menu terbuka, fokus keyboard di bilah, atau ada dialog
+  if (ctlPinned || c.matches(':hover') || c.querySelector('.dropdown.open, :focus-visible') || document.querySelector('.modal-back')) return armHide(1500);
+  stageEl().classList.add('ctl-hide');
+  $('#controls-peek').hidden = false;
+}
+function applyControlsMode() {
+  const st = stageEl();
+  st.classList.toggle('ctl-float', !ctlPinned);
+  if (ctlPinned) { clearTimeout(ctlTimer); st.classList.remove('ctl-hide'); $('#controls-peek').hidden = true; }
+  else showControls();
+  const b = $('#btn-pin-controls');
+  setIcon(b, ctlPinned ? 'chevron-down' : 'pin-icon');
+  b.title = ctlPinned ? 'Sembunyikan bilah kontrol secara otomatis' : 'Sematkan bilah kontrol (selalu tampil)';
+  b.setAttribute('aria-label', b.title);
+  b.setAttribute('aria-pressed', String(ctlPinned));
+  schedule();
+}
+function initAutoHide() {
+  if (document.body.classList.contains('rec-mode')) return;
+  const st = stageEl();
+  $('#btn-pin-controls').addEventListener('click', () => {
+    ctlPinned = !ctlPinned;
+    try { localStorage.setItem(CTL_KEY, ctlPinned ? 'pin' : 'auto'); } catch { /* abaikan */ }
+    applyControlsMode();
+    toast(ctlPinned ? 'Bilah kontrol disematkan (selalu tampil)' : 'Bilah kontrol akan tersembunyi otomatis. Arahkan kursor ke bawah untuk memunculkannya.', 'info', 3500);
+  });
+  $('#controls-peek').addEventListener('click', (e) => { e.stopPropagation(); showControls(); });
+  // Kursor mendekati bagian bawah panggung → tampilkan
+  st.addEventListener('pointermove', (e) => {
+    if (ctlPinned || e.pointerType === 'touch') return;
+    const r = st.getBoundingClientRect();
+    if (e.clientY > r.bottom - 130 || e.target.closest('#controls')) showControls();
+  });
+  st.addEventListener('pointerleave', () => { if (!ctlPinned) armHide(1200); });
+  // Layar sentuh: ketuk panggung untuk menampilkan/menyembunyikan
+  st.addEventListener('pointerup', (e) => {
+    if (ctlPinned || e.pointerType !== 'touch' || e.target.closest('#controls, #controls-peek, .wb-tools, .pres-bar, .cam-page, .tile, button, select, a, textarea')) return;
+    // Sedang menggambar di whiteboard: ketukan adalah coretan, bukan perintah menampilkan bilah
+    const pg = e.target.closest('#pres-page');
+    if (pg && /\btool-(?!pointer\b)/.test(pg.className)) return;
+    if (st.classList.contains('ctl-hide')) showControls(); else tryHideControls();
+  });
+  $('#controls').addEventListener('focusin', showControls);
+  addEventListener('keydown', (e) => { if (e.key === 'Tab') showControls(); });
+  applyControlsMode();
+}
+
 // ==================== Inisialisasi ====================
 export function initControls(room) {
   store.dataSaver = !!prefs.dataSaver; store.sounds = prefs.sounds !== false;
@@ -382,7 +449,8 @@ export function initControls(room) {
   $('#btn-screen').addEventListener('click', toggleScreen);
   $('#btn-leave').addEventListener('click', () => leave(false));
   $('#btn-hand').addEventListener('click', () => { setHand(!store.hands.has(store.identity)); updateControls(); });
-  $('#btn-layout').addEventListener('click', () => { setPresVisible(!isPresVisible()); updateControls(); });
+  for (const b of document.querySelectorAll('#layout-menu [data-layout]')) b.addEventListener('click', () => { setLayout(b.dataset.layout); b.closest('.dropdown').classList.remove('open'); updateControls(); });
+  initAutoHide();
   $('#react-menu').append(...REACTIONS.map(e => h('button', { type: 'button', onclick: () => { react(e); $('#react-menu').parentElement.classList.remove('open'); } }, e)));
   $('#rec-btn').addEventListener('click', toggleRecording);
   $('#conn-btn').addEventListener('click', connModal);
@@ -406,6 +474,7 @@ export function initControls(room) {
     else if (k === 'v') { camPub() ? stopCamera() : webcamModal(); }
     else if (k === 'h') { setHand(!store.hands.has(store.identity)); updateControls(); }
     else if (k === 'c') openPanel('chat');
+    else if (k === 'g') { setLayout(getLayout() === 'gallery' ? 'stage' : 'gallery'); updateControls(); }
   });
 
   room.on(RoomEvent.ConnectionQualityChanged, (q, p) => { if (p === room.localParticipant) updateConn(q); })

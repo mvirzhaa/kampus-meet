@@ -36,7 +36,9 @@
         "android.permission.WAKE_LOCK",
         "android.permission.POST_NOTIFICATIONS",
         "android.permission.SCHEDULE_EXACT_ALARM",
-        "android.permission.RECEIVE_BOOT_COMPLETED"
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
       ],
       "intentFilters": [
         {
@@ -56,7 +58,8 @@
           "category": [
             "BROWSABLE",
             "DEFAULT"
-          ]
+          ],
+          "autoVerify": true
         }
       ]
     },
@@ -123,7 +126,8 @@
         "@livekit/react-native-expo-plugin",
         {
           "android": {
-            "audioType": "communication"
+            "audioType": "communication",
+            "enableScreenShareService": true
           }
         }
       ],

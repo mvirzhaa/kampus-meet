@@ -1,12 +1,12 @@
 // Ruang meeting ala Zoom mobile:
-// • geser kiri/kanan: tampilan pembicara ⇄ galeri (4 per halaman)
+// • geser kiri/kanan: presentasi/whiteboard ⇄ tampilan pembicara ⇄ galeri (4 per halaman)
 // • bilah atas: speaker, ganti kamera, nama room + durasi, tombol Keluar
 // • bilah bawah: Mikrofon, Video, Peserta, Chat, Lainnya
 // • teks langsung (CC) + terjemahan Indonesia ⇄ Inggris di atas bilah bawah
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Alert, BackHandler, FlatList, Pressable, ScrollView, Share, StyleSheet, TextInput, useWindowDimensions, View,
-  type NativeScrollEvent, type NativeSyntheticEvent,
+  type NativeScrollEvent, type NativeSyntheticEvent, type ScrollViewInstance,
 } from 'react-native';
 import { Redirect, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -23,10 +23,11 @@ import { ConnectionState, Track, type Participant } from 'livekit-client';
 import { Avatar, Button, Segmented, Sheet, SwitchRow, T, type IconName } from '@/components/ui';
 import { Tile } from '@/components/meeting/Tile';
 import { Captions } from '@/components/meeting/Captions';
+import { PresentationStage } from '@/components/meeting/Presentation';
 import { getSession, setSession, type Session } from '@/lib/meet';
-import { REACTIONS, nameOf, roleOf, useMeeting, type Cap } from '@/lib/useMeeting';
+import { REACTIONS, nameOf, roleOf, useMeeting, wbKey, type Cap } from '@/lib/useMeeting';
 import { useTranscriber } from '@/lib/useTranscriber';
-import { hasDeviceTranslate, prepareTranslate, SHORT, type Lang2 } from '@/lib/translate';
+import { hasDeviceTranslate, OTHER, prepareTranslate, SHORT, type Lang2 } from '@/lib/translate';
 import { getJSON, setJSON } from '@/lib/store';
 import { getServer } from '@/lib/api';
 import { nextPrayer } from '@/lib/prayer';
@@ -83,7 +84,7 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const landscape = width > height;
-  const { localParticipant, isMicrophoneEnabled, isCameraEnabled } = useLocalParticipant();
+  const { localParticipant, isMicrophoneEnabled, isCameraEnabled, isScreenShareEnabled } = useLocalParticipant();
   const all = useParticipants().filter(p => roleOf(p) !== 'recorder');
   const camRefs = useTracks([{ source: Track.Source.Camera, withPlaceholder: true }], { onlySubscribed: false });
   const screens = useTracks([Track.Source.ScreenShare], { onlySubscribed: true });
@@ -95,9 +96,12 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
   const [now, setNow] = useState(Date.now());
   const [joinedAt] = useState(Date.now());
   const [output, setOutput] = useState<string>('speaker');
-  const isMod = session.role === 'moderator';
   const meta = m.meta;
   const myId = localParticipant.identity;
+  // Peran bisa berubah selama meeting (dijadikan moderator oleh moderator lain)
+  const isMod = roleOf(localParticipant) === 'moderator' || (!localParticipant.attributes?.role && session.role === 'moderator');
+  const canPresent = isMod || meta.presenter === myId;
+  const scrollRef = useRef<ScrollViewInstance>(null);
 
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { const sp = speakingList.find(p => !p.isLocal); if (sp && sp.identity !== activeId) setActiveId(sp.identity); }, [speakingList, activeId]);
@@ -113,6 +117,11 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
     enabled: !!meta.transcribe && isMicrophoneEnabled && trPrefs.mine && m.conn === ConnectionState.Connected,
     lang: trPrefs.lang, onInterim: m.myInterim, onFinal: m.myFinal,
   });
+  // Siapkan model terjemahan arah ucapan saya (mis. English → Indonesia) sebelum kalimat pertama,
+  // supaya terjemahan yang dibagikan ke peserta web tidak hilang saat model masih diunduh.
+  useEffect(() => {
+    if (meta.transcribe) prepareTranslate(SHORT[trPrefs.lang], OTHER[trPrefs.lang]);
+  }, [meta.transcribe, trPrefs.lang]);
 
   // Ruang kelompok: kembali otomatis saat ruang ditutup
   const boReturning = useRef(false);
@@ -125,12 +134,27 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
   const local = all.find(p => p.isLocal) || localParticipant;
   // Kunci "lihat kamera": peserta hanya melihat kamera moderator/presenter/yang disorot
   const canSeeVideo = (p: Participant) => isMod || p.isLocal || !meta.locks?.seeCams || roleOf(p) === 'moderator' || p.identity === meta.presenter || p.identity === meta.spotlight;
-  const screen = screens.find(isTrackReference);
+  // Layar milik sendiri tidak ditampilkan (menghindari efek cermin tak berujung); cukup kartu status
+  const screen = screens.find(r => isTrackReference(r) && !r.participant.isLocal);
   const featured: Participant = (meta.spotlight && all.find(p => p.identity === meta.spotlight))
     || (activeId && others.find(p => p.identity === activeId)) || others.find(p => p.identity === meta.presenter) || others[0] || local;
   const ordered = [local, ...others.sort((a, b) => (m.hands[b.identity] ? 1 : 0) - (m.hands[a.identity] ? 1 : 0))];
   const galleryPages = useMemo(() => { const pages: Participant[][] = []; for (let i = 0; i < ordered.length; i += 4) pages.push(ordered.slice(i, i + 4)); return pages; }, [ordered]);
-  const pageCount = 1 + (others.length ? galleryPages.length : 0);
+  // Halaman: 0 = presentasi/whiteboard, 1 = pembicara, 2.. = galeri
+  const pageCount = 2 + (others.length ? galleryPages.length : 0);
+  const shapes = m.shapesFor(wbKey(meta.pres));
+  const presenterName = meta.presenter ? nameOf(all.find(p => p.identity === meta.presenter)) : '';
+  const goPage = useCallback((i: number, animated = true) => { scrollRef.current?.scrollTo({ x: i * width, y: 0, animated }); setPage(i); }, [width]);
+  // Moderator menampilkan presentasi baru → pindah otomatis ke halaman presentasi
+  const lastPresId = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const id = meta.pres?.id ?? null;
+    if (lastPresId.current === undefined) { lastPresId.current = id; goPage(id ? 0 : 1, false); return; }
+    if (id && id !== lastPresId.current) { goPage(0); toast('Presentasi ditampilkan — geser ke kiri untuk melihat kamera'); }
+    lastPresId.current = id;
+  }, [meta.pres?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Setelah putar layar, jaga agar tetap di halaman yang sama
+  useEffect(() => { goPage(page, false); }, [width]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const elapsed = meta.startedAt ? now - meta.startedAt * 1000 : now - joinedAt;
   const handUp = !!m.hands[myId];
@@ -167,10 +191,25 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
     <View style={[s.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
       <StatusBar style="light" />
       {/* ---------- Panggung ---------- */}
-      <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} style={StyleSheet.absoluteFill} contentContainerStyle={{ paddingTop: insets.top }}>
+      <ScrollView ref={scrollRef} horizontal pagingEnabled showsHorizontalScrollIndicator={false} onMomentumScrollEnd={onScroll} style={StyleSheet.absoluteFill} contentContainerStyle={{ paddingTop: insets.top }}>
+        {/* Presentasi / whiteboard (sama dengan panggung utama versi web) */}
         <Pressable style={{ width, height: stageH }} onPress={() => setBarsHidden(h => !h)}>
           <View style={{ flex: 1, marginTop: barsHidden ? 0 : topH, marginBottom: barsHidden ? 0 : botH, padding: 6 }}>
-            {screen ? (
+            <PresentationStage server={getServer()} code={session.room.id} seat={session.seat} pres={meta.pres || null} name={meta.name || session.room.name}
+              shapes={shapes} ver={m.wbVer} canPresent={canPresent && !meta.bo} presenterName={presenterName}
+              onGoto={(n) => { m.actions.gotoSlide(n).catch(e => toast((e as Error).message)); }} />
+          </View>
+        </Pressable>
+        <Pressable style={{ width, height: stageH }} onPress={() => setBarsHidden(h => !h)}>
+          <View style={{ flex: 1, marginTop: barsHidden ? 0 : topH, marginBottom: barsHidden ? 0 : botH, padding: 6 }}>
+            {isScreenShareEnabled && !screen ? (
+              <View style={s.sharing}>
+                <Ionicons name="phone-portrait-outline" size={44} color={C.gold} />
+                <T w="bold" size={17} color="#fff" style={{ textAlign: 'center' }}>Anda sedang berbagi layar</T>
+                <T size={13.5} color={C.callMuted} style={{ textAlign: 'center' }}>Semua yang tampil di layar HP Anda terlihat oleh peserta. Buka aplikasi atau dokumen yang ingin ditunjukkan.</T>
+                <Button small variant="danger" icon="stop-circle-outline" title="Hentikan berbagi layar" onPress={m.actions.toggleScreen} />
+              </View>
+            ) : screen ? (
               <View style={{ flex: 1 }}>
                 <Tile p={screen.participant} cam={screen} big fit="contain" style={{ flex: 1 }} label={`Layar ${nameOf(screen.participant)}`} />
               </View>
@@ -182,7 +221,13 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
                 <Tile p={local} cam={camOf.get(local.identity)} style={{ flex: 1 }} hand={handUp} react={m.reacts[myId]} label="Saya" />
               </View>
             ) : null}
-            {meta.pres && !screen ? <View style={s.presNote}><Ionicons name="easel-outline" size={16} color={C.gold} /><T size={12.5} color="#fff" style={{ flex: 1 }}>Moderator menampilkan presentasi/whiteboard — slide tampil di versi web.</T></View> : null}
+            {meta.pres && !screen && !isScreenShareEnabled ? (
+              <Pressable style={s.presNote} onPress={() => goPage(0)}>
+                <Ionicons name="easel-outline" size={16} color={C.gold} />
+                <T size={12.5} color="#fff" style={{ flex: 1 }} numberOfLines={1}>Presentasi: {meta.pres.name}</T>
+                <T w="bold" size={12.5} color={C.gold}>Lihat ›</T>
+              </Pressable>
+            ) : null}
           </View>
         </Pressable>
         {others.length ? galleryPages.map((pg, i) => {
@@ -250,6 +295,15 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
           {REACTIONS.map(e => <Pressable key={e} style={s.reactBtn} onPress={() => { m.actions.react(e); setSheet(null); }} accessibilityLabel={`Reaksi ${e}`}><T size={28}>{e}</T></Pressable>)}
         </View>
         <MoreItem icon="hand-left" label={handUp ? 'Turunkan tangan' : 'Angkat tangan'} onPress={() => { m.actions.setHand(!handUp); setSheet(null); }} active={handUp} />
+        {canPresent && !meta.bo ? <MoreItem icon={isScreenShareEnabled ? 'stop-circle-outline' : 'phone-portrait-outline'} label={isScreenShareEnabled ? 'Hentikan berbagi layar' : 'Bagikan layar HP'}
+          desc={isScreenShareEnabled ? 'Layar Anda sedang terlihat oleh peserta' : 'Tampilkan layar HP ke semua peserta'} active={isScreenShareEnabled}
+          onPress={() => { setSheet(null); m.actions.toggleScreen(); }} /> : null}
+        {isMod && !meta.bo && meta.recMode !== 'off' ? <MoreItem icon="radio-button-on" label={meta.recording ? 'Hentikan rekam' : 'Mulai rekam'} active={!!meta.recording}
+          desc={meta.recMode === 'egress' ? (meta.recording ? 'Sedang direkam di server; file masuk ke Google Drive' : 'Direkam di server (MP4 720p) lalu diunggah ke Google Drive') : 'Rekaman di mode ini hanya bisa dimulai dari browser (web)'}
+          onPress={meta.recMode === 'egress' ? () => toggleRecord() : undefined} /> : null}
+        {isMod && !meta.bo ? <MoreItem icon={meta.transcribe ? 'stop-circle-outline' : 'mic-circle-outline'} label={meta.transcribe ? 'Hentikan transkripsi' : 'Mulai transkripsi'} active={!!meta.transcribe}
+          desc={meta.transcribe ? 'Ucapan semua pembicara sedang dicatat' : 'Catat ucapan semua pembicara + terjemahan'}
+          onPress={() => { setSheet(null); toggleTranscribe(!meta.transcribe); }} /> : null}
         <MoreItem icon="language" label="Transkripsi & terjemahan" desc={meta.transcribe ? `Aktif · ${trPrefs.lang === 'id-ID' ? 'Indonesia' : 'English'}${trPrefs.to ? ` → ${trPrefs.to === 'en' ? 'English' : 'Indonesia'}` : ''}` : isMod ? 'Mulai transkripsi untuk room ini' : 'Belum diaktifkan moderator'} onPress={() => setSheet('tr')} />
         {meta.breakout?.active && !meta.bo ? <MoreItem icon="git-branch-outline" label="Ruang kelompok" desc="Pilih/gabung ruang diskusi" onPress={() => setSheet('bo')} /> : null}
         {meta.bo ? <MoreItem icon="return-up-back" label="Kembali ke ruang utama" onPress={() => { setSheet(null); m.actions.goRoom(0); }} /> : null}
@@ -257,7 +311,7 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
         <MoreItem icon="information-circle-outline" label="Info meeting & undangan" onPress={() => setSheet('info')} />
       </Sheet>
       <TranscriptSheet visible={sheet === 'tr'} onClose={() => setSheet(null)} meta={meta} isMod={isMod} prefs={trPrefs} save={saveTr} status={tr.status} err={tr.errMsg} lines={m.lines} trs={m.trs}
-        onToggle={async (on) => { try { await m.actions.setTranscribe(on); toast(on ? 'Transkripsi dimulai' : 'Transkripsi dihentikan'); } catch (e) { toast((e as Error).message); } }} micOn={isMicrophoneEnabled} />
+        onToggle={toggleTranscribe} micOn={isMicrophoneEnabled} />
       <Sheet dark visible={sheet === 'info'} onClose={() => setSheet(null)} title="Info meeting">
         <InfoRow label="Nama" value={meta.name || session.room.name} />
         <InfoRow label="ID room" value={session.room.id} />
@@ -280,6 +334,16 @@ function CallView({ session, m, trPrefs, saveTr, toast, toastMsg, onLeft }: {
     </View>
   );
 
+  async function toggleTranscribe(on: boolean) {
+    try { await m.actions.setTranscribe(on); toast(on ? 'Transkripsi dimulai' : 'Transkripsi dihentikan'); } catch (e) { toast((e as Error).message); }
+  }
+  function toggleRecord() {
+    setSheet(null);
+    const on = !meta.recording;
+    const run = async () => { try { await m.actions.setRecording(on); toast(on ? 'Rekaman dimulai' : 'Rekaman dihentikan — file akan diunggah ke Google Drive'); } catch (e) { toast((e as Error).message); } };
+    if (on) Alert.alert('Mulai rekam?', 'Presentasi, layar, kamera, suara, dan teks CC direkam di server. Semua peserta melihat tanda sedang direkam.', [{ text: 'Batal', style: 'cancel' }, { text: 'Mulai rekam', onPress: run }]);
+    else Alert.alert('Hentikan rekaman?', undefined, [{ text: 'Batal', style: 'cancel' }, { text: 'Hentikan', style: 'destructive', onPress: run }]);
+  }
   function personMenu(p: Participant) {
     if (!isMod || p.isLocal) return;
     Alert.alert(nameOf(p), undefined, [
@@ -420,7 +484,8 @@ function TranscriptSheet({ visible, onClose, meta, isMod, prefs, save, status, e
       {isMod ? <Button variant={on ? 'danger' : 'primary'} icon={on ? 'stop-circle-outline' : 'mic-circle-outline'} title={on ? 'Hentikan transkripsi' : 'Mulai transkripsi'} onPress={() => onToggle(!on)} /> : null}
       {lines.length ? <T w="bold" size={15} color="#fff" style={{ marginTop: 6 }}>Transkrip</T> : null}
       {lines.slice(-60).map(l => {
-        const to = prefs.to && SHORT[l.lang] !== prefs.to ? prefs.to : null;
+        // Dwibahasa: kalimat berbahasa tujuan tetap menampilkan terjemahan lawannya bila tersedia
+        const to = !prefs.to ? null : SHORT[l.lang] !== prefs.to ? prefs.to : OTHER[l.lang];
         const t = to ? trs[l.key]?.[to] : undefined;
         return (
           <View key={l.key} style={{ gap: 2 }}>
@@ -452,7 +517,8 @@ const s = StyleSheet.create({
   dotOn: { backgroundColor: '#fff' },
   capArea: { position: 'absolute', left: 0, right: 0, height: 180 },
   toast: { position: 'absolute', alignSelf: 'center', maxWidth: '86%', backgroundColor: 'rgba(0,0,0,0.8)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 9 },
-  presNote: { position: 'absolute', left: 14, right: 14, top: 14, flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, padding: 9 },
+  presNote: { position: 'absolute', left: 14, right: 130, top: 14, flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 10, padding: 9 },
+  sharing: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, padding: 24, backgroundColor: C.callTile, borderRadius: 14 },
   bo: { position: 'absolute', left: 10, right: 10, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#064E3B', borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8 },
   boBtn: { backgroundColor: C.gold, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
   reactRow: { flexDirection: 'row', justifyContent: 'space-between', backgroundColor: '#1B2A25', borderRadius: 14, padding: 8 },

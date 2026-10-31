@@ -20,6 +20,7 @@ const entryPoints = {
   room: path.join(src, 'room', 'main.js'),
   site: path.join(src, 'css', 'site.css'),
   roomcss: path.join(src, 'css', 'room.css'),
+  mprescss: path.join(src, 'css', 'mpres.css'),
 };
 
 const result = await esbuild.build({

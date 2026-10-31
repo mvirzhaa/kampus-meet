@@ -6,7 +6,10 @@ import { store, on, emit, isMod, isPresenter, roleOf, allParticipants, colorFor,
 const $ = (s) => document.querySelector(s);
 const tiles = new Map(); // identity -> { el, video, attached }
 let page = 0;
-let presVisible = true;
+// Tata letak panggung: 'stage' = presentasi + strip peserta, 'gallery' = semua peserta dalam grid,
+// 'focus' = presentasi saja (strip peserta disembunyikan). Disimpan per browser.
+const LAYOUTS = ['stage', 'gallery', 'focus'];
+let layout = (() => { try { const v = localStorage.getItem('km:layout'); return LAYOUTS.includes(v) ? v : 'stage'; } catch { return 'stage'; } })();
 let speaking = new Set();
 const PROTO_SRC = { camera: 1, microphone: 2, screen_share: 3, screen_share_audio: 4 };
 
@@ -17,8 +20,15 @@ export function canPublish(source) {
   return !p.canPublishSources?.length || p.canPublishSources.includes(PROTO_SRC[source]);
 }
 
-export const isPresVisible = () => presVisible;
-export function setPresVisible(v) { presVisible = v; schedule(); emit('layout'); }
+export const getLayout = () => layout;
+export function setLayout(v) {
+  if (!LAYOUTS.includes(v)) return;
+  layout = v; page = 0;
+  try { localStorage.setItem('km:layout', v); } catch { /* abaikan */ }
+  schedule(); emit('layout');
+}
+export const isPresVisible = () => layout !== 'gallery';
+export function setPresVisible(v) { setLayout(v ? 'stage' : 'gallery'); }
 
 function camPub(p) { return p.getTrackPublication(Track.Source.Camera); }
 function hasCam(p) {
@@ -35,6 +45,11 @@ function mayView(p) {
   if (store.meta.spotlight === p.identity) return true; // sorotan selalu tampil, juga saat mode hemat data
   if (store.dataSaver) return false;
   if (!store.meta.locks?.seeCams || isMod()) return true;
+  return roleOf(p.identity) === 'moderator' || isPresenter(p.identity);
+}
+/** Boleh tampil di strip/galeri: saat "lihat peserta lain" dikunci, peserta hanya melihat moderator, presenter, dan dirinya. */
+function mayList(p) {
+  if (p === store.room.localParticipant || !store.meta.locks?.seeUsers || isMod()) return true;
   return roleOf(p.identity) === 'moderator' || isPresenter(p.identity);
 }
 export function screenSharer() {
@@ -89,21 +104,25 @@ function render() {
   const room = store.room; if (!room) return;
   const sharer = screenSharer();
   const spot = spotlighted();
-  const presentationShown = presVisible || !!sharer || !!spot;
+  // Mode galeri dipilih pengguna sendiri, jadi berlaku juga saat ada yang berbagi layar / disorot
+  const gridMode = layout === 'gallery';
   const cams = $('#cams'); const grid = $('#cam-grid'); const main = $('#main-area');
 
-  // Siapa yang tampil di ubin (saat sorotan: strip kamera disembunyikan agar panggung bersih & hemat bandwidth)
-  let list = spot ? [] : allParticipants().filter(p => hasCam(p) && mayView(p));
-  const gridMode = !presentationShown;
-  if (gridMode && !list.length) list = allParticipants(); // tanpa kamera: tampilkan avatar semua peserta
-  list.sort((a, b) => (b === room.localParticipant) - (a === room.localParticipant) || (speaking.has(b.identity) - speaking.has(a.identity)) || a.name.localeCompare(b.name));
+  // Siapa yang tampil di ubin: semua peserta (kamera mati → avatar). Kamera menyala didahulukan.
+  // Saat sorotan atau mode "presentasi saja", strip disembunyikan agar panggung bersih & hemat bandwidth.
+  const camOn = (p) => hasCam(p) && mayView(p);
+  const recMode = document.body.classList.contains('rec-mode');
+  let list = (!gridMode && (spot || layout === 'focus')) ? [] : allParticipants().filter(mayList);
+  if (recMode) list = list.filter(p => p !== room.localParticipant && camOn(p)); // rekaman: hanya kamera yang menyala
+  list.sort((a, b) => (b === room.localParticipant) - (a === room.localParticipant) || (camOn(b) - camOn(a))
+    || (speaking.has(b.identity) - speaking.has(a.identity)) || (a.name || '').localeCompare(b.name || ''));
 
   // Ukuran halaman ubin
   const areaW = (cams.parentElement.clientWidth || 800) - 100;
   const areaH = Math.max(200, (main.parentElement.clientHeight || 600) - 130);
   let perPage, tileW;
   if (gridMode) {
-    perPage = innerWidth < 600 ? 4 : innerWidth < 1000 ? 6 : 12;
+    perPage = innerWidth < 600 ? 4 : innerWidth < 1000 ? 6 : innerWidth < 1400 ? 12 : 16;
     const n = Math.min(perPage, Math.max(1, list.length));
     const cols = Math.ceil(Math.sqrt(n * (areaW / areaH) / (16 / 9)));
     const rows = Math.ceil(n / cols);
@@ -123,6 +142,9 @@ function render() {
   main.hidden = gridMode;
   $('#cam-prev').hidden = page === 0;
   $('#cam-next').hidden = page >= pages - 1;
+  // Penanda halaman strip (mis. 2/5) agar jelas masih ada peserta lain
+  const pg = $('#cam-pages');
+  if (pg) { pg.hidden = pages <= 1; pg.textContent = `${page + 1}/${pages}`; pg.title = `${list.length} peserta`; }
 
   // Hapus ubin yang tidak terlihat & berhenti berlangganan videonya (hemat bandwidth)
   for (const [id, t] of tiles) {
@@ -143,10 +165,20 @@ function render() {
   // Susun ulang hanya bila urutan berubah
   if (frag.some((el, i) => grid.children[i] !== el) || grid.children.length !== frag.length) grid.replaceChildren(...frag);
 
-  renderScreen(sharer);
-  renderSpot(spot);
+  renderScreen(gridMode ? null : sharer);
+  renderSpot(gridMode ? null : spot);
   if (spot) $('#screen-view').hidden = true;
-  $('#pres-view').hidden = !!spot || !!sharer || !presVisible;
+  $('#pres-view').hidden = !!spot || !!sharer || gridMode;
+  notifyHidden(gridMode && (sharer || spot));
+}
+// Di mode galeri, beri tahu sekali bila ada yang mulai berbagi layar / disorot
+let hiddenNote = null;
+function notifyHidden(what) {
+  const key = what ? (what.p ? 'scr:' + what.p.identity : 'spot:' + what.identity) : null;
+  if (key && key !== hiddenNote && !document.body.classList.contains('rec-mode')) {
+    toast(what.p ? `${what.p.name} sedang berbagi layar. Pilih tata letak "Presentasi" untuk melihatnya.` : `${what.name} sedang disorot. Pilih tata letak "Presentasi" untuk melihatnya.`, 'info', 6000);
+  }
+  hiddenNote = key;
 }
 
 // ---------- Sorotan (spotlight) ----------
@@ -270,6 +302,8 @@ export function initMedia(room) {
   $('#spot-stop').addEventListener('click', () => setSpotlight(null));
   on('meta', spotChanged);
   addEventListener('resize', schedule);
+  // Lebar panggung berubah saat menu/panel kiri dibuka-tutup → hitung ulang jumlah ubin per halaman
+  new ResizeObserver(() => schedule()).observe($('#stage'));
   on('meta', schedule); on('hands', schedule);
   schedule();
 }

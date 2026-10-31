@@ -153,9 +153,17 @@ const hasDeviceTr = 'Translator' in self;
 const translators = new Map(); // 'id>en' -> Promise<Translator|null>
 const trCache = new Map();
 let trQueue = Promise.resolve();
-let trState = '';              // '' | 'device' | 'server' | 'need-gesture' | 'downloading' | 'unsupported' | 'error'
+// 'shared' = browser tanpa penerjemah bawaan (Safari/Firefox) dan server terjemahan tidak aktif: terjemahan
+// diambil dari yang dibagikan pembicara/moderator (Chrome/Edge/aplikasi HP).
+let trState = '';              // '' | 'device' | 'server' | 'shared' | 'need-gesture' | 'downloading' | 'unsupported' | 'error'
 let trDownload = 0; let trErr = '';
 const needsTr = (srcLang) => !!trTo && (SHORT[srcLang] || 'id') !== trTo;
+/**
+ * Bahasa terjemahan yang ditampilkan di panel untuk satu kalimat. Bila terjemahan aktif, panel bersifat dwibahasa:
+ * kalimat dalam bahasa lain diterjemahkan ke bahasa tujuan, sedangkan kalimat yang sudah berbahasa tujuan
+ * (mis. ucapan English saat tujuan English) tetap menampilkan terjemahan lawannya (Indonesia).
+ */
+const shownTo = (l) => !trTo ? null : needsTr(l.lang) ? trTo : OTHER[l.lang];
 const setTrState = (s) => { if (trState !== s) { trState = s; renderTrStatus(); } };
 
 /** Penerjemah di perangkat untuk satu pasangan bahasa. Melempar Error('gesture') bila perlu klik pengguna dulu. */
@@ -202,7 +210,7 @@ async function translateText(text, srcLang, to, { interim: isInterim = false, de
     try { out = (await meetApi('POST', '/translate', { text, from, to })).text; if (trState !== 'device') setTrState('server'); }
     catch (e) { trErr = e.message; setTrState('error'); }
   }
-  if (mine && out == null && !deviceOk && !store.meta.trServer && trState !== 'need-gesture' && trState !== 'downloading') setTrState('unsupported');
+  if (mine && out == null && !deviceOk && !store.meta.trServer && trState !== 'need-gesture' && trState !== 'downloading') setTrState('shared');
   if (out != null && !isInterim) { trCache.set(key, out); if (trCache.size > 800) trCache.delete(trCache.keys().next().value); }
   return out;
 }
@@ -245,29 +253,36 @@ const iAmLeaderMod = () => isMod() && leaderIdentity() === store.identity;
 function renderLineTr(l) {
   const body = l.el?.querySelector('.msg-body'); if (!body) return;
   let box = body.querySelector('.msg-tr');
-  if (!needsTr(l.lang)) { box?.remove(); return; }
-  const t = l.trs[trTo] || null;
+  const to = shownTo(l);
+  if (!to) { box?.remove(); return; }
+  const t = l.trs[to] || null;
   if (!box) { box = h('div', { class: 'msg-tr' }); body.append(box); }
   box.className = 'msg-tr' + (t ? '' : ' pending');
   const wait = trState === 'unsupported' ? 'terjemahan tidak tersedia di browser ini'
+    : trState === 'shared' ? 'menunggu terjemahan dari peserta lain…'
     : trState === 'need-gesture' ? 'klik "Aktifkan terjemahan" di atas' : trState === 'error' ? 'terjemahan gagal' : 'menerjemahkan…';
-  box.replaceChildren(h('span', { class: 'tr-lang-tag', text: trTo.toUpperCase() }), t ?? wait);
+  box.replaceChildren(h('span', { class: 'tr-lang-tag', text: to.toUpperCase() }), t ?? wait);
 }
 function queueTr(l) {
   renderLineTr(l);
-  if (!needsTr(l.lang) || l.trs[trTo]) return;
-  const want = trTo;
-  trQueue = trQueue.then(async () => {
-    if (trTo !== want || l.trs[want]) return renderLineTr(l);
-    const out = await translateText(l.text, l.lang, want);
-    if (out != null) { setTr(l, want, out); shareTr(l, want); }
-    renderLineTr(l);
-  }).catch(() => {});
+  const want = shownTo(l);
+  if (!want || l.trs[want]) return;
+  const run = () => {
+    trQueue = trQueue.then(async () => {
+      if (shownTo(l) !== want || l.trs[want]) return renderLineTr(l);
+      const out = await translateText(l.text, l.lang, want);
+      if (out != null) { setTr(l, want, out); shareTr(l, want); }
+      renderLineTr(l);
+    }).catch(() => {});
+  };
+  // Tanpa penerjemah bawaan (Safari/Firefox): server kampus sudah menerjemahkan setiap kalimat sekali dan
+  // membagikannya ke semua peserta. Tunggu sebentar agar tidak meminta terjemahan yang sama dua kali.
+  if (!hasDeviceTr && store.meta.trServer && Date.now() - l.ts < 15000) setTimeout(run, 2500); else run();
 }
 /** Terjemahkan ulang baris terbaru (yang terbaru dulu) setelah pengaturan berubah. */
 function refreshTranslations() {
   const recent = new Set(lines.slice(-80));
-  for (const l of lines) if (!recent.has(l)) { if (l.trs[trTo]) renderLineTr(l); else l.el?.querySelector('.msg-tr')?.remove(); }
+  for (const l of lines) if (!recent.has(l)) { const to = shownTo(l); if (to && l.trs[to]) renderLineTr(l); else l.el?.querySelector('.msg-tr')?.remove(); }
   for (const l of [...recent].reverse()) queueTr(l);
   renderCaptions();
 }
@@ -276,8 +291,8 @@ function prepareTranslation(gesture) {
   const from = trTo === 'en' ? 'id' : 'en';
   deviceTranslator(from, trTo, gesture).then((t) => {
     if (t) setTrState('device');
-    else if (!store.meta.trServer) setTrState('unsupported');
-    for (const l of lines.slice(-80)) if (needsTr(l.lang) && !l.trs[trTo]) queueTr(l);
+    else if (!store.meta.trServer) setTrState('shared');
+    for (const l of lines.slice(-80)) { const to = shownTo(l); if (to && !l.trs[to]) queueTr(l); }
   }).catch((e) => { if (e.message === 'gesture') setTrState('need-gesture'); });
 }
 /**
@@ -289,7 +304,7 @@ function prepOnGesture() {
   if (!hasDeviceTr || !store.meta.transcribe || isRec()) return;
   const pairs = new Set([`${SHORT[lang]}>${OTHER[lang]}`]);
   if (isMod()) { pairs.add('id>en'); pairs.add('en>id'); }
-  if (trTo) pairs.add(`${trTo === 'en' ? 'id' : 'en'}>${trTo}`);
+  if (trTo) { const o = trTo === 'en' ? 'id' : 'en'; pairs.add(`${o}>${trTo}`); pairs.add(`${trTo}>${o}`); }
   for (const k of pairs) {
     if (prepped.has(k)) continue;
     prepped.add(k);
@@ -301,7 +316,7 @@ function prepOnGesture() {
 // Terjemahan teks sementara (CC) hanya di perangkat, dibatasi agar ringan
 const itBusy = new Set();
 function translateInterim(identity) {
-  if (!trTo || !ccOn || !hasDeviceTr || trState === 'unsupported' || itBusy.has(identity)) return;
+  if (!trTo || !ccOn || !hasDeviceTr || trState === 'unsupported' || trState === 'shared' || itBusy.has(identity)) return;
   const it = interim.get(identity); if (!it || !needsTr(it.lang)) return;
   itBusy.add(identity);
   const text = it.text; const want = trTo;
@@ -327,13 +342,16 @@ function renderTrStatus() {
       h('button', { type: 'button', onclick: () => prepareTranslation(true), text: 'Aktifkan terjemahan' })]; cls = 'warn';
   } else if (trState === 'downloading') content = [`Mengunduh paket terjemahan… ${trDownload}%`];
   else if (trState === 'unsupported') { content = ['Browser ini belum mendukung terjemahan otomatis. Gunakan Chrome/Edge versi terbaru di laptop/PC.']; cls = 'warn'; }
+  else if (trState === 'shared') {
+    content = [`Browser ini (mis. Safari/Firefox) tidak punya penerjemah bawaan. Terjemahan ${from} → ${TR_NAMES[trTo]} diambil dari pembicara/moderator yang memakai Chrome, Edge, atau aplikasi HP, jadi bisa tertunda beberapa detik. Admin dapat mengaktifkan server terjemahan kampus agar terjemahan selalu tersedia di semua browser.`];
+  }
   else if (trState === 'error') { content = [`Terjemahan gagal: ${trErr}`]; cls = 'warn'; }
   else {
     const how = trState === 'device' ? ' Diproses di perangkat Anda.' : trState === 'server' ? ' Diproses server kampus.' : '';
-    content = [`Ucapan dalam ${from} diterjemahkan ke ${TR_NAMES[trTo]}.${how}`]; cls = trState ? 'on' : '';
+    content = [`Ucapan dalam ${from} diterjemahkan ke ${TR_NAMES[trTo]}; ucapan dalam ${TR_NAMES[trTo]} disertai terjemahan ${from}.${how}`]; cls = trState ? 'on' : '';
   }
   el.replaceChildren(...content); el.className = 'tr-status ' + cls;
-  for (const l of lines.slice(-80)) if (l.el && needsTr(l.lang) && !l.trs[trTo]) renderLineTr(l);
+  for (const l of lines.slice(-80)) { const to = shownTo(l); if (l.el && to && !l.trs[to]) renderLineTr(l); }
 }
 
 // ==================== Tampilan ====================
@@ -432,7 +450,7 @@ function renderStatus() {
   tb.title = on_ ? 'Atur bahasa transkripsi & terjemahan' : 'Mulai transkripsi otomatis';
   let text, cls = '';
   if (!on_) text = isMod() ? 'Transkripsi belum aktif. Klik "Mulai transkripsi" agar ucapan semua pembicara tercatat otomatis.' : 'Transkripsi belum diaktifkan moderator.';
-  else if (!SR) { text = 'Browser Anda tidak mendukung pengenalan suara, jadi ucapan Anda tidak tercatat. Gunakan Chrome atau Edge di laptop/PC. Ucapan pembicara lain tetap tampil di sini.'; cls = 'warn'; }
+  else if (!SR) { text = 'Browser Anda tidak mendukung pengenalan suara, jadi ucapan Anda tidak tercatat. Gunakan Chrome, Edge, atau Safari (Mac), atau aplikasi UIKA Meet di HP. Ucapan pembicara lain tetap tampil di sini.'; cls = 'warn'; }
   else if (store.audioMode !== 'mic') text = 'Ucapan Anda akan dicatat bila Anda bergabung dengan mikrofon.';
   else if (!micLive()) text = 'Mikrofon Anda mati — ucapan tidak dicatat.';
   else if (running && rec) { text = `Mencatat ucapan Anda (${lang === 'id-ID' ? 'Bahasa Indonesia' : 'English'}, ${mode === 'lokal' ? 'diproses di perangkat' : 'diproses layanan pengenal suara browser'}).`; cls = 'on'; }
