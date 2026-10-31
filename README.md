@@ -265,6 +265,26 @@ Pengamannya: **Panel Admin → Pengguna** menandai akun semacam itu dengan label
 memeriksanya. Bila ingin menutup celahnya sepenuhnya, pilihannya: larang pendaftaran lokal
 dengan email `@uika-bogor.ac.id`, atau matikan password lokal pada akun yang tertaut SSO.
 
+## Aplikasi Android
+
+Ada di `mobile/` (React Native + Expo SDK 58), memakai server, akun, room, dan event yang
+sama dengan versi web. Lihat `mobile/README.md` untuk daftar fitur dan catatan sebelum
+membangun (termasuk mengganti berkas suara azan).
+
+APK dibangun otomatis di GitHub Actions, bukan di mesin lokal:
+
+1. Push ke GitHub, lalu buka tab **Actions** → **Android APK** → **Run workflow**.
+2. Tunggu sampai selesai, lalu unduh APK dari bagian **Artifacts** di halaman run tersebut.
+
+Tanpa keystore rilis, APK ditandatangani dengan kunci debug Expo — cukup untuk pemasangan
+manual, tidak untuk Play Store. Untuk kunci sendiri, isi secret `ANDROID_KEYSTORE_BASE64`,
+`ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, dan `ANDROID_KEY_PASSWORD` di
+**Settings → Secrets and variables → Actions**.
+
+> **Aplikasi mobile belum mendukung SSO E-Portal.** Ia hanya memakai form email dan
+> password. Civitas yang akunnya hanya ada di E-Portal (tanpa password lokal) belum bisa
+> masuk lewat aplikasi; mereka perlu memakai versi web. Lihat catatan di bawah.
+
 ## Mengatasi "Gagal terhubung ke server media"
 
 Halaman ruang terbuka dan spinner *Menghubungkan ke meeting…* berputar lalu gagal → halaman aplikasi

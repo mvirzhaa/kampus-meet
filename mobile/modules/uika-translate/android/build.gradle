@@ -1,0 +1,20 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'id.ac.uikabogor.meet'
+version = '1.0.0'
+
+android {
+  namespace "expo.modules.uikatranslate"
+  defaultConfig {
+    versionCode 1
+    versionName '1.0.0'
+  }
+}
+
+dependencies {
+  // Penerjemah Google ML Kit di perangkat (model ±30 MB per bahasa, diunduh sekali, lalu bekerja offline)
+  implementation 'com.google.mlkit:translate:17.0.3'
+}

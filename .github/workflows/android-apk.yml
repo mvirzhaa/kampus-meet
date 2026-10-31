@@ -1,0 +1,72 @@
+# Membangun APK Android UIKA Meet secara otomatis di GitHub (gratis untuk repositori publik/privat dalam kuota).
+# Cara pakai: unggah folder proyek ke GitHub → tab Actions → "Android APK" → Run workflow.
+# Hasil: file APK pada bagian "Artifacts" di halaman run tersebut.
+name: Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths: ['mobile/**', '.github/workflows/android-apk.yml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Pasang dependensi
+        run: npm ci
+
+      - name: Periksa TypeScript
+        run: npx tsc --noEmit
+
+      - name: Buat proyek Android (prebuild)
+        run: npx expo prebuild --platform android --no-install
+
+      # Opsional: tanda tangan rilis sendiri (untuk Play Store). Isi secret ANDROID_KEYSTORE_BASE64,
+      # ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD di Settings → Secrets.
+      - name: Siapkan keystore rilis
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          echo "$KS" | base64 -d > android/app/release.keystore
+          cat >> android/gradle.properties <<PROPS
+          UIKA_STORE_FILE=release.keystore
+          UIKA_STORE_PASSWORD=$KS_PASS
+          UIKA_KEY_ALIAS=$KEY_ALIAS
+          UIKA_KEY_PASSWORD=$KEY_PASS
+          PROPS
+          node scripts/use-release-keystore.js
+
+      - name: Bangun APK rilis
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: uika-meet-android
+          path: mobile/android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
