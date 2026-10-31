@@ -46,3 +46,4 @@ yarn-error.*
 
 # Keluaran build modul lokal (dibuat Gradle, bukan sumber)
 modules/*/android/build/
+modules/*/android/.gradle/
