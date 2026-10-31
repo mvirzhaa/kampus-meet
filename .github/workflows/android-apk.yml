@@ -31,7 +31,15 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      # android-actions/setup-android sengaja TIDAK dipakai: secara bawaan ia memasang paket
+      # SDK bernama "tools" yang sudah dihapus Google, sehingga sdkmanager keluar dengan
+      # kode 1 dan job gagal sebelum Gradle sempat jalan. Runner ubuntu-latest sudah
+      # membawa Android SDK lengkap beserta lisensi yang diterima.
+      - name: Pastikan Android SDK tersedia di runner
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME/platform-tools" || { echo "Android SDK tidak ada di runner ini."; exit 1; }
+          ls "$ANDROID_HOME/platforms"
 
       - name: Pasang dependensi
         run: npm ci
