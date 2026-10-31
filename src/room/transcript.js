@@ -11,7 +11,7 @@
 //   Bila admin mengaktifkan TRANSLATE_URL, server kampus menerjemahkan setiap kalimat sekali sebagai cadangan.
 // - Server tidak memproses audio sama sekali.
 import { Track } from 'livekit-client';
-import { h, icon, toast, confirmDialog, getMe } from '../shared/common.js';
+import { h, icon, toast, confirmDialog, getMe, modal } from '../shared/common.js';
 import { store, on, emit, isMod, nameOf, meetApi } from './store.js';
 import { send, str, leaderIdentity } from './bus.js';
 import { transcriptPdf, transcriptDocx, saveBlob } from '../shared/export.js';
@@ -424,7 +424,12 @@ function renderStatus() {
   const el = $('#tr-status'); const on_ = !!store.meta.transcribe;
   $('#tr-toggle').textContent = on_ ? 'Hentikan transkripsi' : 'Mulai transkripsi';
   $('#tr-toggle').className = `btn btn-sm mod-only ${on_ ? 'btn-ghost' : 'btn-primary'}`;
-  $('#cap-badge').hidden = !on_;
+  // Tombol di bar atas: moderator memulai transkripsi; saat aktif semua peserta bisa mengatur bahasanya
+  const tb = $('#cap-badge');
+  tb.hidden = !on_ && !isMod();
+  tb.classList.toggle('on', on_);
+  $('#tr-btn-label').textContent = on_ ? 'Transkripsi aktif' : 'Mulai transkripsi';
+  tb.title = on_ ? 'Atur bahasa transkripsi & terjemahan' : 'Mulai transkripsi otomatis';
   let text, cls = '';
   if (!on_) text = isMod() ? 'Transkripsi belum aktif. Klik "Mulai transkripsi" agar ucapan semua pembicara tercatat otomatis.' : 'Transkripsi belum diaktifkan moderator.';
   else if (!SR) { text = 'Browser Anda tidak mendukung pengenalan suara, jadi ucapan Anda tidak tercatat. Gunakan Chrome atau Edge di laptop/PC. Ucapan pembicara lain tetap tampil di sini.'; cls = 'warn'; }
@@ -525,6 +530,40 @@ async function loadHistory() {
   } catch { /* abaikan */ }
 }
 
+// ==================== Popup bahasa (tombol di samping "Mulai rekam") ====================
+function transcribeDialog() {
+  const on_ = !!store.meta.transcribe; const mod = isMod();
+  if (!on_ && !mod) return;
+  const src = h('select', {}, [['id-ID', 'Bahasa Indonesia'], ['en-US', 'English']].map(([v, t]) => h('option', { value: v, text: t, selected: v === lang })));
+  const dst = h('select', {}, [['', 'Tidak diterjemahkan'], ['en', 'English'], ['id', 'Bahasa Indonesia']].map(([v, t]) => h('option', { value: v, text: t, selected: v === trTo })));
+  const cc = h('input', { type: 'checkbox', checked: ccOn });
+  const both = h('input', { type: 'checkbox', checked: ccBoth });
+  const apply = () => {
+    const ls = $('#tr-lang'); if (ls.value !== src.value) { ls.value = src.value; ls.dispatchEvent(new Event('change')); }
+    const ts = $('#tr-to'); if (ts.value !== dst.value) { ts.value = dst.value; ts.dispatchEvent(new Event('change')); }
+    const tb = $('#tr-both'); if (tb.checked !== both.checked) { tb.checked = both.checked; tb.dispatchEvent(new Event('change')); }
+    if (ccOn !== cc.checked) { ccOn = cc.checked; prefs.cc = ccOn; savePrefs(); renderCaptions(); renderStatus(); }
+  };
+  const body = h('div', { class: 'tr-dialog' },
+    h('div', { class: 'grid-2' },
+      h('div', { class: 'field' }, h('label', { text: 'Bahasa asal (ucapan saya)' }), src),
+      h('div', { class: 'field' }, h('label', { text: 'Bahasa tujuan (terjemahan)' }), dst)),
+    h('label', { class: 'check', style: { marginBottom: '8px' } }, cc, 'Tampilkan teks langsung (CC) di layar'),
+    h('label', { class: 'check' }, both, 'CC juga menampilkan teks asli di bawah terjemahan'),
+    h('p', { class: 'tr-note', text: on_
+      ? 'Pengaturan ini hanya berlaku untuk Anda. Peserta lain bisa memilih bahasanya sendiri lewat tombol "Transkripsi aktif".'
+      : 'Ucapan setiap peserta yang menyalakan mikrofon akan diubah menjadi teks beserta namanya dan disimpan sebagai notulen. Semua peserta melihat tanda "Transkripsi aktif" dan dapat memilih bahasa terjemahannya masing-masing.' }));
+  const actions = on_
+    ? [...(mod ? [{ label: 'Hentikan transkripsi', cls: 'btn-ghost', onClick: async () => {
+        try { await meetApi('POST', '/mod/transcribe', { on: false }); toast('Transkripsi dihentikan', 'success'); } catch (e) { toast(e.message, 'error'); }
+      } }] : []), { label: 'Simpan', cls: 'btn-primary', onClick: () => { apply(); toast('Pengaturan bahasa disimpan', 'success'); } }]
+    : [{ label: 'Batal' }, { label: 'Mulai transkripsi', cls: 'btn-primary', onClick: async () => {
+        apply();
+        try { await meetApi('POST', '/mod/transcribe', { on: true }); toast('Transkripsi dimulai', 'success'); } catch (e) { toast(e.message, 'error'); }
+      } }];
+  modal({ title: on_ ? 'Transkripsi & terjemahan' : 'Mulai transkripsi otomatis', body, actions });
+}
+
 // ==================== Inisialisasi ====================
 export function initTranscript() {
   const sel = $('#tr-lang'); sel.value = lang;
@@ -552,6 +591,7 @@ export function initTranscript() {
   });
   // Menu unduh dipasang di <body> dengan posisi tetap: panel samping memakai overflow:hidden sehingga
   // menu yang berada di dalamnya akan terpotong dan tidak bisa diklik.
+  $('#cap-badge').addEventListener('click', transcribeDialog);
   const dlMenu = $('#tr-dl-menu'); const dlBtn = $('#tr-dl');
   document.body.append(dlMenu);
   const placeMenu = () => {

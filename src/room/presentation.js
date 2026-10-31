@@ -243,7 +243,7 @@ function initInput() {
   const cv = $('#wb-canvas'); const scroll = $('#pres-scroll');
   let pan = null;
   cv.addEventListener('pointerdown', (e) => {
-    if (tool === 'pan' || (tool === 'pointer' && zoom > 1)) { pan = { x: e.clientX, y: e.clientY, sl: scroll.scrollLeft, st: scroll.scrollTop }; cv.setPointerCapture(e.pointerId); return; }
+    if (tool === 'pan' || (tool === 'pointer' && zoom > 1)) { pan = { x: e.clientX, y: e.clientY, sl: scroll.scrollLeft, st: scroll.scrollTop }; cv.setPointerCapture(e.pointerId); scroll.classList.add('panning'); return; }
     if (!canDraw() || tool === 'pointer') return;
     const [x, y] = pt(e);
     if (tool === 'eraser') { drawing = { erase: true }; erase(x, y); cv.setPointerCapture(e.pointerId); return; }
@@ -272,13 +272,19 @@ function initInput() {
     drawShapes(); putShape(s);
   });
   const end = (e) => {
-    if (pan) { pan = null; return; }
+    if (pan) { pan = null; scroll.classList.remove('panning'); return; }
     if (!drawing) return;
     const s = drawing.shape; drawing = null;
     if (s) { list().push(s); myStack.push([key(), s.id]); putShape(s, true); }
     drawShapes();
   };
   cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end);
+  scroll.addEventListener('pointerdown', (e) => {
+    if (e.target !== scroll || tool !== 'pan') return;
+    pan = { x: e.clientX, y: e.clientY, sl: scroll.scrollLeft, st: scroll.scrollTop }; scroll.setPointerCapture(e.pointerId); scroll.classList.add('panning');
+  });
+  scroll.addEventListener('pointermove', (e) => { if (pan && e.target === scroll) { scroll.scrollLeft = pan.sl - (e.clientX - pan.x); scroll.scrollTop = pan.st - (e.clientY - pan.y); } });
+  scroll.addEventListener('pointerup', end); scroll.addEventListener('pointercancel', end);
   const ta = $('#wb-text');
   ta.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); } if (e.key === 'Escape') { ta.hidden = true; } });
   ta.addEventListener('blur', commitText);
@@ -290,10 +296,9 @@ function initInput() {
     tools.classList.toggle('collapsed', c);
     tg.title = c ? 'Tampilkan alat gambar' : 'Sembunyikan alat gambar';
     tg.setAttribute('aria-expanded', String(!c));
-    try { localStorage.setItem('km:wbCollapsed', c ? '1' : ''); } catch { /* abaikan */ }
   };
-  let c0 = false; try { c0 = localStorage.getItem('km:wbCollapsed') === '1'; } catch { /* abaikan */ }
-  setCollapsed(c0);
+  // Saat awal meeting alat gambar selalu dilipat agar slide/halaman utama tampil penuh
+  setCollapsed(true);
   tg.addEventListener('click', () => setCollapsed(!tools.classList.contains('collapsed')));
   $('#wb-undo').addEventListener('click', undo);
   $('#wb-clear').addEventListener('click', async () => {
@@ -306,6 +311,14 @@ function setTool(t) {
   tool = t;
   for (const b of document.querySelectorAll('#wb-tools [data-tool]')) b.classList.toggle('active', b.dataset.tool === t);
   $('#pres-page').className = 'pres-page tool-' + t;
+  // Geser hanya bermakna bila slide lebih besar dari layar: perbesar otomatis bila masih pas layar
+  if (t === 'pan') {
+    const sc = $('#pres-scroll');
+    if (sc.scrollWidth <= sc.clientWidth + 2 && sc.scrollHeight <= sc.clientHeight + 2) {
+      zoom = Math.max(zoom, 1.5); fitWidth = false; render();
+      toast('Slide diperbesar 150%. Seret slide untuk menggeser; klik − untuk memperkecil.', 'info', 4000);
+    } else toast('Seret slide untuk menggeser tampilan.', 'info', 2500);
+  }
 }
 function undo() {
   while (myStack.length) {

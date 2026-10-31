@@ -113,6 +113,7 @@ export async function initSite() {
   for (const el of $$('[data-app-name]')) el.textContent = d.app.name;
   for (const el of $$('[data-campus-name]')) el.textContent = d.app.campus;
   for (const el of $$('.logo-slot')) el.replaceWith(logoMark(+el.dataset.size || 40));
+  import('./azan.js').then(m => m.initAzan()).catch(() => {}); // notifikasi azan 5 waktu (Jakarta)
   const slot = $('#nav-auth');
   if (slot) {
     slot.replaceChildren();

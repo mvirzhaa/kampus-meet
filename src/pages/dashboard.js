@@ -2,6 +2,7 @@ import { initSite, $, $$, h, icon, api, toast, modal, confirmDialog, copyText, f
   toLocalInput, fromLocalInput, requireLogin, roomLinksModal, invitationText, startInstantMeeting, loadMe } from '../shared/common.js';
 import { roomFormModal, emptyState } from '../shared/ui.js';
 import { toXlsx, attendancePdf, transcriptPdf, transcriptDocx, saveBlob } from '../shared/export.js';
+import { renderCertDesign, CERT_TEMPLATES } from '../shared/certdesign.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -243,7 +244,7 @@ function eventItem(e, own) {
         !own && e.attendedMin != null ? h('span', {}, icon('clock', 15), `Hadir ${e.attendedMin} mnt`) : null)),
     h('div', { class: 'acts' },
       h('a', { class: 'btn btn-primary btn-sm', href: `/event/${e.slug}` }, 'Buka'),
-      own ? h('button', { class: 'btn btn-ghost btn-sm', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
+      own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Ubah event', 'aria-label': 'Ubah event', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Bagikan link & password', onclick: () => eventInvite(e) }, icon('link', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Peserta', onclick: () => participants(e) }, icon('users', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus', onclick: async () => {
@@ -311,6 +312,39 @@ async function eventForm(ev) {
   const syncSp = () => { spRows.hidden = !spOn.checked; };
   spOn.addEventListener('change', syncSp); syncSp();
 
+  // ----- Desain sertifikat (template + posisi teks), disunting di editor visual -----
+  let certDesign = ev?.certDesign || null;
+  let certBg = { url: ev?.certBgUrl || null, file: null, remove: false };
+  const certPrev = h('div', { class: 'cd' });
+  const certTpl = h('b');
+  const sampleData = () => {
+    const v = (n) => f.querySelector(`[name="${n}"]`)?.value?.trim() || '';
+    const startVal = v('startsAt');
+    return {
+      name: 'Nama Peserta Contoh', title: v('title') || 'Judul Event Anda', category: catField.querySelector('select')?.value || catField.value || 'Seminar',
+      speaker: v('speaker'), dateText: startVal ? fmtDate(fromLocalInput(startVal)) : fmtDate(start), durationText: '1 jam 30 menit',
+      signerName: v('signerName') || 'Panitia Penyelenggara', signerTitle: v('signerTitle') || me.app.campus,
+      code: 'CERT-ABCD-1234', verifyUrl: `${location.origin}/verifikasi/CERT-ABCD-1234`, app: me.app.name, campus: me.app.campus,
+      sponsors: spOn.checked ? [...existing.filter(x => !removed.has(x.id)), ...Object.entries(pending).flatMap(([pos, files]) => files.map(file => ({ position: pos, url: URL.createObjectURL(file), name: file.name })))] : [],
+    };
+  };
+  const drawCertPrev = () => {
+    renderCertDesign(certPrev, certDesign, sampleData(), { bgUrl: certBg.url, logoMark: () => logoMarkImg() });
+    certTpl.textContent = CERT_TEMPLATES[certDesign?.template || 'klasik'].name;
+  };
+  const certBox = h('div', { class: 'cd-mini' }, h('div', { class: 'cd-mini-prev' }, certPrev),
+    h('div', {}, h('div', { class: 'ev-meta' }, 'Template: ', certTpl),
+      h('p', { class: 'ev-meta', text: 'Pilih template atau unggah desain latar sendiri, lalu geser posisi nama, judul, QR, tanda tangan, dan teks lainnya.' }),
+      h('button', { type: 'button', class: 'btn btn-ghost btn-sm', onclick: async () => {
+        const { openCertEditor } = await import('../shared/certeditor.js');
+        openCertEditor({ design: certDesign, bgUrl: certBg.url, sample: sampleData(), onSave: (d, bgAct) => {
+          certDesign = d;
+          if (bgAct?.file) certBg = { url: bgAct.url, file: bgAct.file, remove: false };
+          else if (bgAct?.remove) certBg = { url: null, file: null, remove: true };
+          drawCertPrev(); toast('Desain sertifikat diperbarui. Klik Simpan untuk menyimpan event.', 'success');
+        } });
+      } }, icon('pen', 15), 'Atur desain sertifikat')));
+
   const f = h('form', {},
     h('div', { class: 'field' }, h('label', { text: 'Judul event' }), h('input', { name: 'title', required: true, minlength: 4, maxlength: 140, value: ev?.title || '' })),
     h('div', { class: 'grid-2' },
@@ -332,13 +366,17 @@ async function eventForm(ev) {
     h('div', { class: 'field' }, h('label', { class: 'check' }, spOn, 'Tampilkan logo sponsor di sertifikat'), spRows,
       h('small', { text: 'PNG, JPG, atau WebP, maks. 2 MB per logo, hingga 8 logo per posisi. Disarankan latar transparan.' })),
     h('div', { class: 'field' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'certificate', checked: ev ? ev.certificate : true }), 'Terbitkan sertifikat otomatis')),
+    h('div', { class: 'field' }, h('label', { text: 'Desain sertifikat' }), certBox),
     h('div', { class: 'field' }, h('label', { class: 'check' }, h('input', { type: 'checkbox', name: 'published', checked: ev ? ev.published : true }), 'Publikasikan (tampil di halaman Event)')));
 
+  drawCertPrev();
+  for (const n of ['title', 'speaker', 'signerName', 'signerTitle', 'startsAt']) f.querySelector(`[name="${n}"]`)?.addEventListener('change', drawCertPrev);
   const m = modal({ title: ev ? 'Ubah Event' : 'Buat Event', body: f, wide: true, actions: [{ label: 'Batal' }, { label: ev ? 'Simpan' : 'Buat Event', cls: 'btn-primary', keepOpen: true, onClick: async (e) => {
     if (!f.reportValidity()) return false;
     const d = formData(f); d.startsAt = fromLocalInput(d.startsAt); d.endsAt = fromLocalInput(d.endsAt);
     d.password = pwOn.checked ? pwInput.value.trim().toUpperCase() : '';
     d.sponsorsEnabled = spOn.checked;
+    if (certDesign) d.certDesign = certDesign;
     e.target.disabled = true;
     try {
       const { event: saved } = ev ? await api('PATCH', `/api/events/${ev.id}`, d) : await api('POST', '/api/events', d);
@@ -349,12 +387,19 @@ async function eventForm(ev) {
         try { await api('POST', `/api/events/${saved.id}/sponsors`, file, { 'Content-Type': file.type, 'X-Position': pos, 'X-Filename': encodeURIComponent(file.name) }); }
         catch (err) { failed++; toast(`${file.name}: ${err.message}`, 'error', 6000); }
       }
-      m.close(); toast(failed ? 'Event disimpan, sebagian logo gagal diunggah' : 'Event disimpan', failed ? 'error' : 'success'); loadEvents();
+      // Latar sertifikat (template "Gambar sendiri")
+      try {
+        if (certBg.file) await api('POST', `/api/events/${saved.id}/cert-bg`, certBg.file, { 'Content-Type': certBg.file.type });
+        else if (certBg.remove && ev?.certBgUrl) await api('DELETE', `/api/events/${saved.id}/cert-bg`);
+      } catch (err) { failed++; toast('Latar sertifikat: ' + err.message, 'error', 6000); }
+      m.close(); toast(failed ? 'Event disimpan, sebagian file gagal diunggah' : 'Event disimpan', failed ? 'error' : 'success'); loadEvents();
       if (!ev) eventInvite(saved);
     } catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
     return false;
   } }] });
 }
+
+const logoMarkImg = () => h('img', { class: 'logo-mark-img', src: '/img/uika-meet-mark.svg', width: 34, height: 34, alt: '' });
 
 /** Link & password untuk dibagikan ke peserta. */
 function eventInvite(e) {

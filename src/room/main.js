@@ -150,6 +150,7 @@ else try {
   initControls(room);
   initTranscript();
   initBreakout();
+  import('../shared/azan.js').then(m => m.initAzan()).catch(() => {});
   hideOverlay();
   requestSync();
   if (!resumeAfterSwitch()) audioModal();

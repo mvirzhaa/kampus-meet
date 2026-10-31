@@ -12,9 +12,35 @@ function show() {
   const sec = (location.hash || '#kategori').slice(1);
   for (const p of $$('[data-panel]')) p.hidden = p.dataset.panel !== sec;
   for (const a of $$('.side a[data-sec]')) a.classList.toggle('active', a.dataset.sec === sec);
-  ({ pengaturan: loadSettings, kategori: loadCats, pengguna: loadUsers, meeting: loadRooms, event: loadEvents })[sec]?.();
+  ({ pengaturan: loadSettings, kategori: loadCats, pengguna: loadUsers, meeting: loadRooms, event: loadEvents, azan: loadAzan })[sec]?.();
 }
 addEventListener('hashchange', show);
+
+// ---------- Notifikasi azan (rekaman takbir pembuka) ----------
+let azanBound = false;
+async function loadAzan() {
+  const az = await import('../shared/azan.js');
+  const nx = az.nextPrayer();
+  $('#azan-today').replaceChildren(...az.prayerTimes().map(p => h('div', { class: 'azan-t' + (p.at.getTime() === nx.at.getTime() ? ' next' : '') }, h('span', { text: p.name }), h('b', { text: p.time }))));
+  const st = await api('GET', '/api/admin/azan-audio').catch(() => ({ exists: false }));
+  $('#azan-audio-state').textContent = st.exists
+    ? `Rekaman terpasang${st.name ? `: ${st.name}` : ''} (${Math.max(1, Math.round(st.size / 1024))} KB).`
+    : 'Belum ada rekaman — saat ini yang diputar adalah bunyi lonceng.';
+  $('#azan-del').hidden = !st.exists;
+  if (azanBound) return; azanBound = true;
+  $('#azan-file').addEventListener('change', async (e) => {
+    const f = e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    if (f.size > 3 * 1024 * 1024) return toast('Ukuran file maksimal 3 MB.', 'error');
+    try { await api('POST', '/api/admin/azan-audio', f, { 'Content-Type': f.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(f.name) }); toast('Suara azan tersimpan', 'success'); az.resetAzanAudio(); loadAzan(); }
+    catch (err) { toast(err.message, 'error'); }
+  });
+  $('#azan-play').addEventListener('click', async () => { az.resetAzanAudio(); if (!(await az.playAzan())) toast('Browser memblokir suara. Coba klik lagi.', 'info'); });
+  $('#azan-del').addEventListener('click', async () => {
+    if (!(await confirmDialog('Hapus rekaman azan?', 'Pengingat akan memakai bunyi lonceng sampai rekaman baru diunggah.', 'Hapus'))) return;
+    await api('DELETE', '/api/admin/azan-audio'); az.resetAzanAudio(); toast('Rekaman dihapus', 'success'); loadAzan();
+  });
+}
 
 /** Jalankan pencarian setelah pengguna berhenti mengetik, agar tidak membanjiri server. */
 function debounce(fn, ms = 350) {

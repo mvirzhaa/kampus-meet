@@ -15,6 +15,7 @@
   "devDependencies": {
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@livekit/track-processors": "^0.8.2",
+    "adhan": "^4.4.3",
     "esbuild": "^0.28.2",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",

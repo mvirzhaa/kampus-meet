@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.js';
 import { q, now, tx, getSetting, setSetting } from './db.js';
-import { HttpError, json, readJson } from './http.js';
+import { HttpError, json, readJson, readBody } from './http.js';
 import { requireUser, requireCsrf, requireAdmin, isSuperAdmin } from './auth.js';
 import { clean, hashPassword, passwordProblem } from './security.js';
 import { lk } from './livekit.js';
@@ -86,6 +86,44 @@ export function registerAdminRoutes(r, { uploadsDir }) {
     json(res, 200, { categories: activeCategories() });
   });
 
+  // ---------- Suara azan (takbir pembuka) — diunggah admin, diputar saat masuk waktu salat ----------
+  const azanFile = path.join(config.dataDir, 'uploads', 'azan-audio');
+  const sniffAudio = (b) => {
+    if (b.length < 12) return null;
+    if (b.subarray(0, 3).toString('latin1') === 'ID3' || (b[0] === 0xFF && (b[1] & 0xE0) === 0xE0)) return 'audio/mpeg';
+    if (b.subarray(0, 4).toString('latin1') === 'OggS') return 'audio/ogg';
+    if (b.subarray(0, 4).toString('latin1') === 'RIFF' && b.subarray(8, 12).toString('latin1') === 'WAVE') return 'audio/wav';
+    if (b.subarray(4, 8).toString('latin1') === 'ftyp') return 'audio/mp4';
+    return null;
+  };
+  r.get('/api/azan-audio', (req, res) => {
+    const mime = getSetting('azan_audio_mime');
+    let size; try { size = mime && fs.statSync(azanFile).size; } catch { size = 0; }
+    if (!mime || !size) throw new HttpError(404, 'Suara azan belum diunggah admin.');
+    res.writeHead(200, { 'Content-Type': mime, 'Content-Length': size, 'Cache-Control': 'public, max-age=3600', 'Content-Security-Policy': "default-src 'none'; sandbox" });
+    fs.createReadStream(azanFile).on('error', () => res.destroy()).pipe(res);
+  });
+  r.get('/api/admin/azan-audio', (req, res) => {
+    requireAdmin(req);
+    let size = 0; try { size = fs.statSync(azanFile).size; } catch { /* belum ada */ }
+    json(res, 200, { exists: !!(getSetting('azan_audio_mime') && size), size, name: getSetting('azan_audio_name') || '' });
+  });
+  r.post('/api/admin/azan-audio', async (req, res) => {
+    requireAdmin(req); requireCsrf(req);
+    const buf = await readBody(req, 3 * 1024 * 1024);
+    const mime = sniffAudio(buf);
+    if (!mime) throw new HttpError(415, 'Gunakan file audio MP3, M4A, OGG, atau WAV (maks. 3 MB).');
+    await fs.promises.mkdir(path.dirname(azanFile), { recursive: true });
+    await fs.promises.writeFile(azanFile, buf, { mode: 0o644 });
+    let name = ''; try { name = clean(decodeURIComponent(String(req.headers['x-filename'] || '')), 120); } catch { /* abaikan */ }
+    setSetting('azan_audio_mime', mime); setSetting('azan_audio_name', name);
+    json(res, 201, { ok: true, size: buf.length });
+  });
+  r.delete('/api/admin/azan-audio', (req, res) => {
+    requireAdmin(req); requireCsrf(req);
+    fs.rmSync(azanFile, { force: true }); setSetting('azan_audio_mime', null);
+    json(res, 200, { ok: true });
+  });
 
   // ---------- Pengaturan (4 toggle "boleh membuat") ----------
   r.get('/api/admin/settings', (req, res) => {

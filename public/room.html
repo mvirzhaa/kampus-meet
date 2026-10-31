@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex"><meta name="referrer" content="no-referrer">
 <title>Meeting — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
-<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-NV76QCXC.css">
-<link rel="stylesheet" href="/assets/roomcss-ZWW44RQZ.css">
+<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-76GTVXPQ.css">
+<link rel="stylesheet" href="/assets/roomcss-2DM2FL3F.css">
 </head>
 <body class="room-body">
 <div id="app" class="room" data-panel="chat">
@@ -97,7 +97,7 @@
       <button class="icon-btn light" id="toggle-nav" title="Tampilkan menu (chat, catatan, transkrip, pengguna)" aria-label="Tampilkan/sembunyikan menu" aria-expanded="false"><i data-i="menu" data-s="20"></i><b class="nav-dot" id="nav-dot" hidden></b></button>
       <div class="r-title"><span id="room-name">Meeting</span><span class="sep"></span><span id="elapsed">00:00</span></div>
       <button class="rec-btn" id="rec-btn" type="button"><span class="rec-dot"></span><span id="rec-label">Mulai rekam</span></button>
-      <span class="cap-badge" id="cap-badge" hidden title="Ucapan peserta sedang ditranskripsi otomatis"><i data-i="captions" data-s="16"></i><span>Transkripsi aktif</span></span>
+      <button class="rec-btn tr-btn" id="cap-badge" type="button" hidden title="Transkripsi & terjemahan otomatis"><i data-i="captions" data-s="16"></i><span id="tr-btn-label">Mulai transkripsi</span></button>
       <div class="r-top-right">
         <button class="conn-btn" id="conn-btn" title="Status koneksi" aria-label="Status koneksi"><i data-i="signal" data-s="18"></i></button>
         <div class="dropdown"><button class="icon-btn light" aria-label="Opsi lainnya"><i data-i="more-v" data-s="22"></i></button>
@@ -106,6 +106,7 @@
             <button id="m-settings"><i data-i="settings" data-s="16"></i>Pengaturan</button>
             <button id="m-info"><i data-i="info" data-s="16"></i>Info room</button>
             <button id="m-shortcuts"><i data-i="keyboard" data-s="16"></i>Pintasan keyboard</button>
+            <button id="m-azan" data-azan><i data-i="moon-star" data-s="16"></i>Jadwal salat &amp; azan</button>
             <button id="m-breakout" class="mod-only"><i data-i="users" data-s="16"></i>Ruang kelompok (breakout)</button>
             <button id="m-end" class="mod-only danger"><i data-i="phone-off" data-s="16"></i>Akhiri meeting untuk semua</button>
             <button id="m-leave"><i data-i="log-out" data-s="16"></i>Keluar</button>
@@ -214,6 +215,6 @@
 
 <div id="overlay" class="overlay"><div class="ov-box"><div class="spinner"></div><p id="ov-text">Menghubungkan ke meeting…</p></div></div>
 <div id="audio-sink" hidden></div>
-<script type="module" src="/assets/room-RYK5RAZ4.js"></script>
+<script type="module" src="/assets/room-ASKZPVJJ.js"></script>
 </body>
 </html>

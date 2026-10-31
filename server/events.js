@@ -41,7 +41,36 @@ export function sponsorsOf(e) {
 /** Hapus file logo sponsor milik event (baris DB ikut terhapus lewat ON DELETE CASCADE). */
 export function removeSponsorFiles(eventId) {
   for (const s of q('SELECT id, mime FROM event_sponsors WHERE event_id = ?').all(eventId)) fs.rmSync(sponsorFile(s), { force: true });
+  fs.rmSync(path.join(config.dataDir, 'uploads', 'certbg', String(parseInt(eventId, 10))), { force: true }); // latar sertifikat
 }
+
+// ---------- Desain sertifikat ----------
+const CERT_TEMPLATES = new Set(['klasik', 'modern', 'elegan', 'minimal', 'gambar']);
+const CERT_ELEMENTS = new Set(['brand', 'heading', 'label', 'name', 'text1', 'title', 'text2', 'qr', 'signer', 'signerTitle', 'verify', 'spTL', 'spTR', 'spBR']);
+const CERT_TEXT_ELEMENTS = new Set(['heading', 'label', 'text1', 'text2']);
+const certBgDir = path.join(config.dataDir, 'uploads', 'certbg');
+fs.mkdirSync(certBgDir, { recursive: true });
+const certBgFile = (eventId) => path.join(certBgDir, String(parseInt(eventId, 10)));
+const num = (v, lo, hi) => { const n = Number(v); return Number.isFinite(n) ? Math.round(Math.min(hi, Math.max(lo, n)) * 100) / 100 : undefined; };
+/** Bersihkan desain kiriman klien: hanya kunci yang dikenal, angka dibatasi, warna heksadesimal. */
+function sanitizeCertDesign(d) {
+  if (!d || typeof d !== 'object') return '';
+  const out = { template: CERT_TEMPLATES.has(d.template) ? d.template : 'klasik', els: {} };
+  for (const [id, v] of Object.entries(d.els && typeof d.els === 'object' ? d.els : {})) {
+    if (!CERT_ELEMENTS.has(id) || !v || typeof v !== 'object') continue;
+    const o = {};
+    const x = num(v.x, 0, 100), y = num(v.y, 0, 100), w = num(v.w, 3, 100), fs_ = num(v.fs, 0.4, 14);
+    if (x !== undefined) o.x = x; if (y !== undefined) o.y = y; if (w !== undefined) o.w = w; if (fs_ !== undefined) o.fs = fs_;
+    if (['left', 'center', 'right'].includes(v.align)) o.align = v.align;
+    if (typeof v.color === 'string' && /^#[0-9a-f]{6}$/i.test(v.color)) o.color = v.color.toLowerCase();
+    if (typeof v.hidden === 'boolean') o.hidden = v.hidden;
+    if (CERT_TEXT_ELEMENTS.has(id) && typeof v.text === 'string') o.text = clean(v.text, 220);
+    if (Object.keys(o).length) out.els[id] = o;
+  }
+  return JSON.stringify(out);
+}
+const certDesignOf = (e) => { try { return e.cert_design ? JSON.parse(e.cert_design) : null; } catch { return null; } };
+const certBgUrl = (e) => e.cert_bg_mime ? `/api/cert-bg/${e.id}?v=${e.cert_bg_ver || 0}` : null;
 
 function eventView(e, extra = {}) {
   const regs = q('SELECT COUNT(*) AS n FROM event_regs WHERE event_id = ?').get(e.id).n;
@@ -51,7 +80,7 @@ function eventView(e, extra = {}) {
     startsAt: e.starts_at, endsAt: e.ends_at, quota: e.quota, certificate: !!e.certificate, minAttendMin: minCert(e),
     published: !!e.published, registered: regs, organizer, hasPassword: !!e.password_enc,
     signerName: e.signer_name || '', signerTitle: e.signer_title || '',
-    sponsorsEnabled: !!e.sponsors_enabled, sponsors: sponsorsOf(e), ...extra,
+    sponsorsEnabled: !!e.sponsors_enabled, sponsors: sponsorsOf(e), certDesign: certDesignOf(e), certBgUrl: certBgUrl(e), ...extra,
   };
 }
 /** Untuk penyelenggara: sertakan password event (bisa dilihat ulang seperti passcode Zoom). */
@@ -79,6 +108,7 @@ function eventInput(b, partial) {
   if (b.signerName !== undefined) o.signer_name = clean(b.signerName, 100);
   if (b.signerTitle !== undefined) o.signer_title = clean(b.signerTitle, 120);
   if (b.sponsorsEnabled !== undefined) o.sponsors_enabled = b.sponsorsEnabled ? 1 : 0;
+  if (b.certDesign !== undefined) { o.cert_design = sanitizeCertDesign(b.certDesign); if (o.cert_design.length > 12000) throw new HttpError(400, 'Desain sertifikat terlalu besar.'); }
   return o;
 }
 
@@ -143,10 +173,10 @@ export function registerEventRoutes(r, { createRoomRecord }) {
       const room = createRoomRecord(u.id, { name: data.title, allowGuests: false, muteOnJoin: true, password: '', welcome: `Selamat datang di ${data.title}.` });
       const slug = slugify(data.title);
       const info = q(`INSERT INTO events (slug, owner_id, room_id, title, description, speaker, category, starts_at, ends_at, quota, certificate, min_attend_min, published, created_at,
-          password_enc, signer_name, signer_title, sponsors_enabled)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(slug, u.id, room.id, data.title, data.description ?? '', data.speaker ?? '', data.category ?? fallbackCategory(),
+          password_enc, signer_name, signer_title, sponsors_enabled, cert_design)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(slug, u.id, room.id, data.title, data.description ?? '', data.speaker ?? '', data.category ?? fallbackCategory(),
         data.starts_at, data.ends_at, data.quota ?? 0, data.certificate ?? 1, data.min_attend_min ?? config.certMinMinutes, data.published ?? 1, now(),
-        data.password_enc ?? null, data.signer_name ?? '', data.signer_title ?? '', data.sponsors_enabled ?? 0);
+        data.password_enc ?? null, data.signer_name ?? '', data.signer_title ?? '', data.sponsors_enabled ?? 0, data.cert_design ?? '');
       return q('SELECT * FROM events WHERE id = ?').get(Number(info.lastInsertRowid));
     });
     json(res, 201, { event: ownerView(ev) });
@@ -209,6 +239,31 @@ export function registerEventRoutes(r, { createRoomRecord }) {
     json(res, 200, { ok: true });
   });
 
+  // ----- Latar sertifikat (template "Gambar sendiri") -----
+  r.post('/api/events/:id/cert-bg', async (req, res, { id }) => {
+    const e = owned(req, id); requireCsrf(req);
+    if (limiters.upload.take('cb:' + e.id)) throw new HttpError(429, 'Terlalu banyak unggahan. Tunggu sebentar.');
+    const buf = await readBody(req, 6 * 1024 * 1024);
+    const mime = sniffImage(buf);
+    if (!mime) throw new HttpError(415, 'Latar sertifikat harus berupa gambar PNG, JPG, atau WebP (maks. 6 MB).');
+    await fs.promises.writeFile(certBgFile(e.id), buf, { mode: 0o644 });
+    q('UPDATE events SET cert_bg_mime = ?, cert_bg_ver = ? WHERE id = ?').run(mime, now(), e.id);
+    json(res, 201, { url: certBgUrl({ ...e, cert_bg_mime: mime, cert_bg_ver: now() }) });
+  });
+  r.delete('/api/events/:id/cert-bg', (req, res, { id }) => {
+    const e = owned(req, id); requireCsrf(req);
+    fs.rmSync(certBgFile(e.id), { force: true });
+    q('UPDATE events SET cert_bg_mime = NULL WHERE id = ?').run(e.id);
+    json(res, 200, { ok: true });
+  });
+  r.get('/api/cert-bg/:id', (req, res, { id }) => {
+    const e = q('SELECT id, cert_bg_mime FROM events WHERE id = ?').get(parseInt(id, 10));
+    if (!e?.cert_bg_mime) throw new HttpError(404, 'Latar tidak ditemukan.');
+    const file = certBgFile(e.id); let size; try { size = fs.statSync(file).size; } catch { throw new HttpError(404, 'Latar tidak ditemukan.'); }
+    res.writeHead(200, { 'Content-Type': e.cert_bg_mime, 'Content-Length': size, 'Cache-Control': 'public, max-age=86400', 'Content-Security-Policy': "default-src 'none'; sandbox" });
+    fs.createReadStream(file).on('error', () => res.destroy()).pipe(res);
+  });
+
   // Logo bersifat publik (tampil di sertifikat yang bisa dibuka siapa pun)
   r.get('/api/sponsors/:sid', (req, res, { sid }) => {
     const sp = q('SELECT id, mime, size FROM event_sponsors WHERE id = ?').get(sid);
@@ -239,6 +294,7 @@ export function registerEventRoutes(r, { createRoomRecord }) {
       signerName: row.signer_name || 'Panitia Penyelenggara', signerTitle: row.signer_title || config.campusName,
       sponsors: sponsorsOf(row), verifyUrl: `${config.publicUrl}/verifikasi/${row.cert_code}`,
       campus: config.campusName, app: config.appName, timezone: config.timezone,
+      design: certDesignOf(row), bgUrl: certBgUrl(row),
     } });
   });
 }

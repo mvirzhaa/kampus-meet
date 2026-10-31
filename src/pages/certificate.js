@@ -1,37 +1,22 @@
 import { $, h, api, hydrateIcons, fmtDate, logoMark } from '../shared/common.js';
 import { qrSvg } from '../shared/qr.js';
+import { renderCertDesign } from '../shared/certdesign.js';
 hydrateIcons();
 const code = location.pathname.split('/')[2];
 $('#print').addEventListener('click', () => print());
 
-const logos = (list, cls) => list.length
-  ? h('div', { class: `cert-sp ${cls}` }, list.map(s => h('img', { src: s.url, alt: s.name || 'Logo sponsor' })))
-  : null;
+const dur = (min) => { const j = Math.floor(min / 60), m = min % 60; return j ? `${j} jam${m ? ` ${m} menit` : ''}` : `${m} menit`; };
 
 try {
   const { certificate: c } = await api('GET', `/api/certificates/${encodeURIComponent(code)}`);
   document.title = `Sertifikat — ${c.name}`;
   $('#verified').hidden = false;
-  const sp = (pos) => (c.sponsors || []).filter(s => s.position === pos);
-  const br = sp('br');
-  const qr = h('div', { class: 'qr', title: 'Pindai untuk memverifikasi sertifikat' });
-  qr.append(qrSvg(c.verifyUrl, { label: `QR verifikasi sertifikat ${c.code}` }));
-
-  const top = sp('tl').length || sp('tr').length
-    ? h('div', { class: 'cert-top' }, logos(sp('tl'), 'tl') || h('span'), logos(sp('tr'), 'tr') || h('span')) : null;
-  $('#cert').replaceChildren(h('div', { class: 'cert-inner' + (top ? ' has-top' : '') },
-    top,
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: '10px', fontWeight: 800, color: '#047857', fontSize: 'clamp(13px,1.8vw,19px)' } }, logoMark(34), `${c.app} · ${c.campus}`),
-    h('h1', { text: 'SERTIFIKAT' }),
-    h('small', { class: 'label', text: 'Diberikan kepada' }),
-    h('div', { class: 'name', text: c.name }),
-    h('p', { text: `atas partisipasinya sebagai peserta ${c.category.toLowerCase()}` }),
-    h('div', { class: 'title', text: `“${c.title}”` }),
-    h('p', { text: `yang diselenggarakan secara daring pada ${fmtDate(c.startsAt)}${c.speaker ? ` dengan narasumber ${c.speaker}` : ''}.` }),
-    h('div', { class: 'foot' + (br.length ? ' has-br' : '') },
-      h('div', { class: 'verify' }, h('div', { text: 'Kode verifikasi:' }), h('b', { text: c.code }), h('div', { class: 'url', text: c.verifyUrl.replace(/^https?:\/\//, '') })),
-      h('div', { class: 'sign' }, qr, h('b', { class: 'signer', text: c.signerName }), h('div', { text: c.signerTitle })),
-      br.length ? h('div', { class: 'support' }, h('small', { text: 'Didukung oleh' }), logos(br, 'br')) : null)));
+  // Desain mengikuti pengaturan penyelenggara event (template, posisi & ukuran tiap teks)
+  renderCertDesign($('#cert'), c.design, {
+    name: c.name, title: c.title, category: c.category, speaker: c.speaker, dateText: fmtDate(c.startsAt),
+    durationText: dur(c.attendedMin || 0), signerName: c.signerName, signerTitle: c.signerTitle,
+    code: c.code, verifyUrl: c.verifyUrl, app: c.app, campus: c.campus, sponsors: c.sponsors || [],
+  }, { bgUrl: c.bgUrl, logoMark: () => logoMark(34), qrSvg: (t) => qrSvg(t, { label: `QR verifikasi sertifikat ${c.code}` }) });
 } catch (e) {
   $('#cert').replaceChildren(h('div', { class: 'cert-inner' }, h('h1', { text: 'Tidak Valid', style: { color: '#b23a3a' } }), h('p', { text: e.message })));
 }

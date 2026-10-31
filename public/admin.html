@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Panel Admin — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
 <meta name="robots" content="noindex">
-<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-NV76QCXC.css">
+<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-76GTVXPQ.css">
 </head>
 <body>
 <div class="topbar"></div>
@@ -47,11 +47,27 @@
       <a href="#pengguna" data-sec="pengguna"><i data-i="users"></i>Pengguna</a>
       <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Semua Meeting</a>
       <a href="#event" data-sec="event"><i data-i="calendar"></i>Semua Event</a>
+      <a href="#azan" data-sec="azan"><i data-i="moon-star"></i>Notifikasi Azan</a>
       <a href="/dashboard#integrasi"><i data-i="settings"></i>Integrasi</a>
       <a href="/dashboard"><i data-i="grid"></i>Kembali ke Dasbor</a>
     </aside>
     <div>
       <div class="stats" id="overview" hidden></div>
+
+      <section data-panel="azan" hidden>
+        <div class="dash-head"><h1>Notifikasi Azan</h1></div>
+        <p class="ev-meta">Saat masuk waktu salat lima waktu (wilayah Jakarta, WIB), semua pengguna yang membuka situs atau ruang meeting mendapat pemberitahuan dan mendengar takbir pembuka azan. Unggah potongan rekaman azan bagian awal (“Allahu akbar, Allahu akbar”, ±10–20 detik). Selama belum ada rekaman, yang diputar adalah bunyi lonceng lembut.</p>
+        <div class="section-card azan-admin">
+          <div class="azan-times" id="azan-today"></div>
+          <div id="azan-audio-state" class="ev-meta">Memuat…</div>
+          <div class="row-actions">
+            <label class="btn btn-primary"><i data-i="upload" data-s="17"></i>Unggah suara takbir<input type="file" id="azan-file" accept="audio/mpeg,audio/mp4,audio/ogg,audio/wav,.mp3,.m4a,.ogg,.wav" hidden></label>
+            <button class="btn btn-ghost" id="azan-play" type="button"><i data-i="volume" data-s="17"></i>Putar</button>
+            <button class="btn btn-danger" id="azan-del" type="button" hidden><i data-i="trash" data-s="17"></i>Hapus rekaman</button>
+          </div>
+          <small class="ev-meta">Format MP3, M4A, OGG, atau WAV, maksimal 3 MB. Gunakan rekaman yang Anda miliki haknya (misalnya rekaman muazin masjid kampus).</small>
+        </div>
+        </section>
 
       <section data-panel="pengaturan" hidden>
         <div class="dash-head"><h1>Pengaturan</h1></div>
@@ -94,6 +110,6 @@
     </div>
   </div>
 </main>
-<script type="module" src="/assets/admin-RX5XHGIR.js"></script>
+<script type="module" src="/assets/admin-7MQWISXK.js"></script>
 </body>
 </html>

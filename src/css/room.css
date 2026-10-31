@@ -149,6 +149,8 @@
 #wb-canvas { touch-action: none; }
 .pres-page.tool-pen #wb-canvas, .pres-page.tool-rect #wb-canvas, .pres-page.tool-ellipse #wb-canvas, .pres-page.tool-line #wb-canvas, .pres-page.tool-arrow #wb-canvas { cursor: crosshair; }
 .pres-page.tool-eraser #wb-canvas { cursor: cell; } .pres-page.tool-text #wb-canvas { cursor: text; } .pres-page.tool-pan #wb-canvas { cursor: grab; }
+.pres-scroll.panning, .pres-scroll.panning #wb-canvas { cursor: grabbing !important; user-select: none; }
+.pres-view:has(.pres-page.tool-pan) .pres-scroll { cursor: grab; touch-action: none; }
 .wb-text { position: absolute; z-index: 3; min-width: 120px; min-height: 34px; font: 600 18px var(--font); padding: 4px 6px; border: 2px dashed #047857; background: rgba(255, 255, 255, .9); resize: both; }
 .wb-tools { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 2px; background: #fff; border-radius: 10px; padding: 5px; box-shadow: 0 4px 16px rgba(0, 0, 0, .3); z-index: 4; max-height: calc(100% - 16px); overflow-y: auto; }
 .wb-tools button { width: 34px; height: 34px; border: 0; background: none; border-radius: 7px; color: #3a4757; cursor: pointer; display: grid; place-items: center; }
@@ -315,7 +317,11 @@ input[type=range] { padding: 0; accent-color: #047857; }
 .cap-line b { color: #6ee7b7; font-weight: 600; margin-right: 6px; }
 .cap-line.interim span { opacity: .8; }
 .cap-line small { display: block; font-size: .78em; opacity: .72; margin-top: 2px; }
-@media (max-width: 860px) { .cap-badge span { display: none; } .cap-line { font-size: 15px; } }
+@media (max-width: 860px) { .tr-btn span { display: none; } .cap-line { font-size: 15px; } }
+.tr-btn.on { border-color: #10b981; color: #b7f0d5; background: rgba(4, 120, 87, .22); }
+.tr-dialog .grid-2 { gap: 0 14px; }
+.tr-dialog .tr-note { font-size: 13px; color: #5c7068; background: #f1f7f4; border-radius: 10px; padding: 10px 12px; margin: 4px 0 0; }
+.tr-dialog .swap { display: flex; align-items: center; gap: 10px; }
 
 /* --- Mode perekam (dibuka oleh LiveKit Egress, 1280×720) --- */
 .rec-mode .room, .rec-mode .room.panel-hidden, .rec-mode .room.nav-hidden { grid-template-columns: 1fr; }
