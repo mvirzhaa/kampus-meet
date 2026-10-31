@@ -43,3 +43,6 @@ yarn-error.*
 # Folder native dibuat otomatis oleh "expo prebuild"
 /android
 /ios
+
+# Keluaran build modul lokal (dibuat Gradle, bukan sumber)
+modules/*/android/build/

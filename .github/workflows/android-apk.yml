@@ -61,6 +61,11 @@ jobs:
           KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           echo "$KS" | base64 -d > android/app/release.keystore
+          # gradle.properties hasil prebuild TIDAK diakhiri baris baru, sehingga baris
+          # pertama heredoc di bawah menempel ke baris terakhirnya dan merusak nilainya
+          # (android.minSdkVersion=26UIKA_STORE_FILE=...), lalu Gradle gagal di fase
+          # konfigurasi. echo tanpa argumen menambahkan satu baris kosong sebagai pemisah.
+          echo >> android/gradle.properties
           cat >> android/gradle.properties <<PROPS
           UIKA_STORE_FILE=release.keystore
           UIKA_STORE_PASSWORD=$KS_PASS
