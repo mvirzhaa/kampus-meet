@@ -66,6 +66,8 @@ if (ev) {
   $('#j-desc').textContent = 'Event ini dilindungi password. Masukkan password dari panitia (cukup sekali).';
 }
 if (data.role === 'moderator') lines.push('Anda masuk sebagai moderator.');
+if (ev?.invited && data.role !== 'moderator') lines.push('Anda termasuk peserta undangan.');
+if (ev?.notInvited) showErr('Event ini khusus peserta yang diundang penyelenggara. Hubungi penyelenggara bila Anda seharusnya diundang.');
 if (lines.length) { info.textContent = lines.join(' · '); info.hidden = false; }
 
 if (data.needLogin) {

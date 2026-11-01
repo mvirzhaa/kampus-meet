@@ -78,6 +78,11 @@ export const limiters = {
   roomPw: new RateLimiter({ capacity: 100, refillPerMin: 2 }),
   transcript: new RateLimiter({ capacity: 30, refillPerMin: 40 }),
   translate: new RateLimiter({ capacity: 60, refillPerMin: 90 }),
+  // Chatbot halaman depan (boleh tamu) dan masukan
+  chatbot: new RateLimiter({ capacity: 20, refillPerMin: 12 }),
+  feedback: new RateLimiter({ capacity: 5, refillPerMin: 1 }),
+  // Tombol kirim undangan (per event) & email uji admin
+  inviteSend: new RateLimiter({ capacity: 3, refillPerMin: 2 }),
 };
 
 // ---------- Validasi input ----------

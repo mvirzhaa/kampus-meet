@@ -164,6 +164,12 @@ const needsTr = (srcLang) => !!trTo && (SHORT[srcLang] || 'id') !== trTo;
  * (mis. ucapan English saat tujuan English) tetap menampilkan terjemahan lawannya (Indonesia).
  */
 const shownTo = (l) => !trTo ? null : needsTr(l.lang) ? trTo : OTHER[l.lang];
+/**
+ * Bahasa terjemahan yang tampil untuk sebuah kalimat. Selain pilihan penonton (shownTo), terjemahan ke
+ * bahasa lawan yang sudah DIBAGIKAN pembicara/moderator/server (mis. ucapan English dari aplikasi HP yang
+ * sudah diterjemahkan ke Indonesia) selalu ditampilkan, walau penonton belum memilih bahasa terjemahan.
+ */
+const displayTo = (l) => shownTo(l) || (l.trs?.[OTHER[l.lang]] ? OTHER[l.lang] : null);
 const setTrState = (s) => { if (trState !== s) { trState = s; renderTrStatus(); } };
 
 /** Penerjemah di perangkat untuk satu pasangan bahasa. Melempar Error('gesture') bila perlu klik pengguna dulu. */
@@ -253,7 +259,7 @@ const iAmLeaderMod = () => isMod() && leaderIdentity() === store.identity;
 function renderLineTr(l) {
   const body = l.el?.querySelector('.msg-body'); if (!body) return;
   let box = body.querySelector('.msg-tr');
-  const to = shownTo(l);
+  const to = displayTo(l);
   if (!to) { box?.remove(); return; }
   const t = l.trs[to] || null;
   if (!box) { box = h('div', { class: 'msg-tr' }); body.append(box); }
@@ -282,7 +288,7 @@ function queueTr(l) {
 /** Terjemahkan ulang baris terbaru (yang terbaru dulu) setelah pengaturan berubah. */
 function refreshTranslations() {
   const recent = new Set(lines.slice(-80));
-  for (const l of lines) if (!recent.has(l)) { const to = shownTo(l); if (to && l.trs[to]) renderLineTr(l); else l.el?.querySelector('.msg-tr')?.remove(); }
+  for (const l of lines) if (!recent.has(l)) { const to = displayTo(l); if (to && l.trs[to]) renderLineTr(l); else l.el?.querySelector('.msg-tr')?.remove(); }
   for (const l of [...recent].reverse()) queueTr(l);
   renderCaptions();
 }
@@ -431,8 +437,11 @@ function renderCaptions() {
         tr ? h('em', { class: 'cap-tr' }, h('i', { text: to.toUpperCase() }), cut(tr)) : null);
     }
     const tr = !needsTr(i.lang) ? null : i.line ? (i.line.trs[trTo] || null) : (i.it?.tr?.to === trTo ? i.it.tr.text : null);
+    // Kalimat yang tidak diterjemahkan ke pilihan penonton tetap disertai terjemahan lawan yang sudah dibagikan
+    const other = !tr && i.line ? (i.line.trs[OTHER[i.lang]] || null) : null;
     return h('div', { class: `cap-line ${i.interim ? 'interim' : ''}` }, h('b', { text: nameOf(i.id) + ':' }), h('span', { text: cut(tr ?? i.text) }),
-      tr && ccBoth ? h('small', { text: cut(i.text) }) : null);
+      tr && ccBoth ? h('small', { text: cut(i.text) }) : null,
+      other ? h('em', { class: 'cap-tr' }, h('i', { text: OTHER[i.lang].toUpperCase() }), cut(other)) : null);
   }));
   clearTimeout(capTimer);
   if (top.length) capTimer = setTimeout(renderCaptions, 1500);

@@ -177,6 +177,87 @@ CREATE TABLE IF NOT EXISTS categories (
   active INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL
 );
+-- Jejak akses untuk statistik: login (termasuk SSO) dan kunjungan harian pengguna yang sesinya masih aktif
+CREATE TABLE IF NOT EXISTS access_log (
+  id INTEGER PRIMARY KEY,
+  user_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,                      -- login | visit
+  ts INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_access_ts ON access_log(ts);
+CREATE INDEX IF NOT EXISTS idx_access_user ON access_log(user_id, ts);
+-- Masukan: dari chatbot (rating 1–5 + teks, boleh tamu) dan dari pengguna login (teks)
+CREATE TABLE IF NOT EXISTS feedback (
+  id INTEGER PRIMARY KEY,
+  source TEXT NOT NULL,                    -- chatbot | user
+  user_id INTEGER,
+  name TEXT NOT NULL DEFAULT '',
+  email TEXT NOT NULL DEFAULT '',
+  rating INTEGER,                          -- 1..5 (chatbot), NULL untuk masukan teks
+  text TEXT NOT NULL DEFAULT '',
+  chat TEXT,                               -- ringkasan percakapan chatbot (JSON), opsional
+  lang TEXT,
+  created_at INTEGER NOT NULL,
+  read_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_created ON feedback(created_at);
+-- Undangan event: daftar pengguna yang diundang penyelenggara (opsional: hanya mereka yang boleh bergabung)
+CREATE TABLE IF NOT EXISTS event_invites (
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  invited_at INTEGER NOT NULL,
+  invited_by INTEGER,
+  notified_at INTEGER,                     -- email/push undangan terakhir dikirim
+  reminded_at INTEGER,                     -- pengingat 30 menit sebelum mulai sudah dikirim
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_invites_user ON event_invites(user_id);
+-- Token push (FCM) aplikasi Android per perangkat
+CREATE TABLE IF NOT EXISTS push_tokens (
+  token TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  platform TEXT NOT NULL DEFAULT 'android',
+  created_at INTEGER NOT NULL,
+  last_seen INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_push_user ON push_tokens(user_id);
+-- Antrean email keluar (dikirim berurutan, dicoba ulang bila gagal)
+CREATE TABLE IF NOT EXISTS email_outbox (
+  id INTEGER PRIMARY KEY,
+  to_addr TEXT NOT NULL,
+  to_name TEXT NOT NULL DEFAULT '',
+  subject TEXT NOT NULL,
+  html TEXT NOT NULL,
+  text TEXT NOT NULL,
+  ics TEXT,
+  kind TEXT NOT NULL DEFAULT '',           -- invite | reminder | test
+  ref TEXT,
+  status TEXT NOT NULL DEFAULT 'queued',   -- queued | sent | failed
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_try INTEGER NOT NULL DEFAULT 0,
+  error TEXT,
+  created_at INTEGER NOT NULL,
+  sent_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_outbox_status ON email_outbox(status, next_try);
+-- Rilis aplikasi Android (APK diunggah admin, diunduh dari halaman depan & dicek aplikasi untuk pembaruan)
+CREATE TABLE IF NOT EXISTS app_releases (
+  id INTEGER PRIMARY KEY,
+  status TEXT NOT NULL,                    -- uploading | published | hidden
+  version TEXT,                            -- versionName, mis. 1.2.0
+  version_code INTEGER,
+  notes TEXT NOT NULL DEFAULT '',
+  size INTEGER NOT NULL,
+  sha256 TEXT,
+  package TEXT,
+  min_sdk INTEGER,
+  original_name TEXT,
+  downloads INTEGER NOT NULL DEFAULT 0,
+  uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at INTEGER NOT NULL,
+  published_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_releases_status ON app_releases(status, version_code);
 `);
 
 // Migrasi kolom (aman dijalankan berulang)
@@ -206,8 +287,17 @@ for (const sql of [
   // Breakout room: lokasi kursi saat ini (0 = ruang utama) dan asal kalimat transkrip
   'ALTER TABLE seats ADD COLUMN bo INTEGER NOT NULL DEFAULT 0',
   'ALTER TABLE transcripts ADD COLUMN bo INTEGER NOT NULL DEFAULT 0',
+  // Undangan: hanya peserta yang diundang yang boleh bergabung; pengingat untuk penyelenggara
+  'ALTER TABLE events ADD COLUMN invite_only INTEGER NOT NULL DEFAULT 0',
+  'ALTER TABLE events ADD COLUMN reminded_at INTEGER',
+  // Lama sesi (hari) per sesi: sesi aplikasi mobile jauh lebih panjang dari sesi browser
+  'ALTER TABLE sessions ADD COLUMN days INTEGER',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
+
+// Waktu pembuatan room/event dipakai statistik (sudah ada sejak awal); indeks agar rentang waktu cepat
+for (const sql of ['CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)', 'CREATE INDEX IF NOT EXISTS idx_rooms_created ON rooms(created_at)',
+  'CREATE INDEX IF NOT EXISTS idx_presence_joined ON presence(joined_at)']) { try { db.exec(sql); } catch { /* abaikan */ } }
 
 // Satu identitas SSO hanya boleh menempel ke satu akun lokal
 try { db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_sso ON users(sso_id) WHERE sso_id IS NOT NULL'); } catch { /* sudah ada */ }

@@ -14,6 +14,9 @@ jobs:
     timeout-minutes: 60
     env:
       HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+      HAS_FIREBASE: ${{ secrets.GOOGLE_SERVICES_JSON != '' }}
+      # versionCode naik otomatis setiap build (Android hanya mau memperbarui bila versionCode lebih besar)
+      APP_VERSION_CODE: ${{ github.run_number }}
     defaults:
       run:
         working-directory: mobile
@@ -46,6 +49,16 @@ jobs:
 
       - name: Periksa TypeScript
         run: npx tsc --noEmit
+
+      # Opsional: push notification undangan & pengingat event (Firebase Cloud Messaging).
+      # Isi secret GOOGLE_SERVICES_JSON dengan isi file google-services.json dari Firebase Console
+      # (Project settings → Your apps → Android, paket id.ac.uikabogor.meet). Tanpa secret ini APK tetap
+      # dibangun; pengingat event memakai notifikasi lokal di HP.
+      - name: Siapkan konfigurasi Firebase
+        if: env.HAS_FIREBASE == 'true'
+        env:
+          GS: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: printf '%s' "$GS" > google-services.json
 
       - name: Buat proyek Android (prebuild)
         run: npx expo prebuild --platform android --no-install

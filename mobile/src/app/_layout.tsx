@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import { AppState } from 'react-native';
 import { Stack } from 'expo-router/stack';
+import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
@@ -8,6 +9,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFonts, PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { playTakbir, scheduleAzan, getAzanPrefs } from '@/lib/prayer';
+import { notifData, routeFor, setupMeetingChannel } from '@/lib/push';
+import { promptUpdate } from '@/lib/update';
 import { C, F } from '@/lib/theme';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -21,7 +24,7 @@ Notifications.setNotificationHandler({
 });
 
 function Root() {
-  const { ready: authReady } = useAuth();
+  const { ready: authReady, me } = useAuth();
   // Huruf sudah tertanam di APK (plugin expo-font); useFonts menjamin tersedia juga di Expo Go / pratinjau web
   const [fontsLoaded, fontErr] = useFonts({ PlusJakartaSans_400Regular, PlusJakartaSans_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold });
   const ready = authReady && (fontsLoaded || !!fontErr);
@@ -35,6 +38,19 @@ function Root() {
     });
     return () => { sub.remove(); rec.remove(); };
   }, []);
+
+  // Notifikasi undangan/pengingat diketuk → buka detail event atau langsung halaman gabung
+  useEffect(() => {
+    if (!ready) return;
+    setupMeetingChannel().catch(() => {});
+    const open = (n: Notifications.Notification) => { const to = routeFor(notifData(n)); if (to) setTimeout(() => router.push(to as never), 300); };
+    Notifications.getLastNotificationResponseAsync().then(r => { if (r) { open(r.notification); Notifications.clearLastNotificationResponseAsync?.().catch(() => {}); } }).catch(() => {});
+    const tap = Notifications.addNotificationResponseReceivedListener(r => open(r.notification));
+    return () => tap.remove();
+  }, [ready]);
+
+  // Versi baru dari admin → tawarkan pembaruan (sekali per versi)
+  useEffect(() => { if (ready) { const t = setTimeout(() => promptUpdate().catch(() => {}), 2500); return () => clearTimeout(t); } }, [ready, !!me?.user]);
   if (!ready) return null;
   return (
     <Stack screenOptions={{
@@ -49,6 +65,7 @@ function Root() {
       <Stack.Screen name="schedule" options={{ title: 'Jadwalkan Meeting' }} />
       <Stack.Screen name="room/[code]" options={{ title: 'Detail Meeting' }} />
       <Stack.Screen name="event/[slug]" options={{ title: 'Detail Event' }} />
+      <Stack.Screen name="event/invites" options={{ title: 'Undangan Peserta' }} />
       <Stack.Screen name="prayer" options={{ title: 'Jadwal Salat & Azan', presentation: 'modal' }} />
       <Stack.Screen name="meeting/[code]" options={{ headerShown: false, gestureEnabled: false, animation: 'fade', contentStyle: { backgroundColor: C.call } }} />
       <Stack.Screen name="j/[code]" options={{ headerShown: false }} />

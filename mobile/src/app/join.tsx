@@ -35,6 +35,7 @@ export default function Join() {
       const i = info?.room.id === target.code ? info : await api<JoinInfo>('GET', `/api/join/${encodeURIComponent(target.code)}${target.key ? `?k=${encodeURIComponent(target.key)}` : ''}`);
       setInfo(i);
       if (i.needLogin) { setBusy(false); return Alert.alert('Perlu masuk', i.event ? 'Silakan masuk dengan akun kampus untuk mengikuti event ini.' : 'Room ini hanya untuk pengguna yang sudah masuk.', [{ text: 'Batal', style: 'cancel' }, { text: 'Masuk', onPress: () => router.push('/login') }]); }
+      if (i.event?.notInvited) { setBusy(false); return Alert.alert('Khusus peserta undangan', 'Event ini hanya untuk peserta yang diundang penyelenggara. Hubungi penyelenggara bila Anda seharusnya diundang.'); }
       if (i.event && !i.event.open && i.role !== 'moderator') { setBusy(false); return Alert.alert('Room belum dibuka', `Room event dibuka 30 menit sebelum acara (${fmtDateTime(i.event.startsAt)}).`); }
       if (i.needPassword && !password) { setBusy(false); return; } // tampilkan kolom password
       await setJSON('join_prefs', { name: name.trim(), noAudio, noVideo });

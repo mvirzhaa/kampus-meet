@@ -28,6 +28,20 @@ Aplikasi Android (React Native + Expo SDK 58) untuk UIKA Meet. Aplikasi ini mema
   - Disertai suara takbir pembuka azan, *"Allahu akbar, Allahu akbar"*.
   - Pengingat bisa dimatikan per waktu salat.
 - **Tautan undangan langsung ke aplikasi**: `https://meet.uika-bogor.ac.id/j/...` dan `/r/...` terbuka di aplikasi.
+- **Undangan event**: tab Event → *Undangan* (undangan untuk Anda, tombol Gabung & Google Calendar) dan *Kelola* (event yang Anda buat → *Kelola undangan*: cari pengguna, tambah/hapus, khusus undangan, kirim email + notifikasi ke semua peserta).
+- **Push notification** undangan baru dan **pengingat 30 menit sebelum event** (butuh `google-services.json` dari Firebase, lihat di bawah). Tanpa Firebase, pengingat tetap muncul sebagai notifikasi lokal.
+- **Tetap login** sampai menekan *Keluar*: token sesi disimpan di penyimpanan aman HP (bukan cookie) dan diperpanjang otomatis setiap aplikasi dipakai.
+- **Pemberitahuan versi baru** bila admin mengunggah APK yang lebih baru di Panel Admin → Aplikasi Android.
+
+## Firebase (push notification)
+
+1. Firebase Console → *Add app* → Android, paket `id.ac.uikabogor.meet` → unduh `google-services.json`.
+2. Build lokal: taruh file itu di folder `mobile/` (sudah di-.gitignore). GitHub Actions: simpan isinya sebagai secret `GOOGLE_SERVICES_JSON`.
+3. Di server, isi `FCM_SERVICE_ACCOUNT_FILE` (akun layanan dari project Firebase yang sama) — lihat README utama.
+
+## Versi
+
+`app.config.js` memakai `version` dari `app.json` dan menaikkan `android.versionCode` dari variabel `APP_VERSION_CODE` (workflow GitHub mengisinya dengan nomor run), sehingga setiap APK baru dikenali Android sebagai pembaruan.
 
 ## ⚠️ Sebelum membangun: ganti suara azan
 

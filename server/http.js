@@ -123,7 +123,7 @@ export class Router {
     this.routes.push({ method, re, keys, handler });
   }
   get(p, h) { this.add('GET', p, h); } post(p, h) { this.add('POST', p, h); }
-  patch(p, h) { this.add('PATCH', p, h); } delete(p, h) { this.add('DELETE', p, h); }
+  patch(p, h) { this.add('PATCH', p, h); } delete(p, h) { this.add('DELETE', p, h); } put(p, h) { this.add('PUT', p, h); }
   match(method, pathname) {
     let allowed = false;
     for (const r of this.routes) {

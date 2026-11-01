@@ -9,6 +9,7 @@ import { HttpError, json, readJson, readBody } from './http.js';
 import { currentUser, requireUser, requireCsrf } from './auth.js';
 import { clean, cleanMultiline, randomToken, encrypt, decrypt, limiters } from './security.js';
 import { validCategory, fallbackCategory, assertCanCreate } from './admin.js';
+import { isInvited, inviteCount, scheduleChanged, googleCalendarUrl } from './invites.js';
 
 function slugify(title) {
   const base = title.toLowerCase().normalize('NFKD').replace(/[^\w\s-]/g, '').trim().replace(/[\s_]+/g, '-').slice(0, 50) || 'event';
@@ -78,13 +79,13 @@ function eventView(e, extra = {}) {
   return {
     id: e.id, slug: e.slug, title: e.title, description: e.description, speaker: e.speaker, category: e.category,
     startsAt: e.starts_at, endsAt: e.ends_at, quota: e.quota, certificate: !!e.certificate, minAttendMin: minCert(e),
-    published: !!e.published, registered: regs, organizer, hasPassword: !!e.password_enc,
+    published: !!e.published, registered: regs, organizer, hasPassword: !!e.password_enc, inviteOnly: !!e.invite_only,
     signerName: e.signer_name || '', signerTitle: e.signer_title || '',
     sponsorsEnabled: !!e.sponsors_enabled, sponsors: sponsorsOf(e), certDesign: certDesignOf(e), certBgUrl: certBgUrl(e), ...extra,
   };
 }
 /** Untuk penyelenggara: sertakan password event (bisa dilihat ulang seperti passcode Zoom). */
-const ownerView = (e, extra = {}) => eventView(e, { password: decrypt(e.password_enc), roomId: e.room_id, ...extra });
+const ownerView = (e, extra = {}) => eventView(e, { password: decrypt(e.password_enc), roomId: e.room_id, invites: inviteCount(e.id), ...extra });
 
 function eventInput(b, partial) {
   const o = {};
@@ -156,12 +157,15 @@ export function registerEventRoutes(r, { createRoomRecord }) {
     const isOwner = !!u && (u.id === e.owner_id || u.role === 'admin');
     const t = now();
     const open = t >= e.starts_at - 1800 && t <= e.ends_at + 3600;
+    const invited = !!u && isInvited(e.id, u.id);
+    // Event khusus undangan: hanya peserta yang diundang (dan penyelenggara/admin) yang mendapat tautan gabung
+    const allowed = isOwner || !e.invite_only || invited;
     // Tanpa pendaftaran: pengguna login langsung diarahkan ke halaman gabung (password ditanya di sana bila ada)
     const room = q('SELECT id, moderator_key FROM rooms WHERE id = ?').get(e.room_id);
     const extra = {
       isOwner, joined: !!reg, attendedMin: reg ? Math.floor(reg.attended_sec / 60) : 0, certCode: reg?.cert_code || null,
-      joinOpen: open, opensAt: e.starts_at - 1800,
-      joinLink: !u || !room ? null : isOwner ? `/j/${room.id}?k=${room.moderator_key}` : (open ? `/j/${room.id}` : null),
+      joinOpen: open, opensAt: e.starts_at - 1800, invited, allowed, googleCalendarUrl: googleCalendarUrl(e),
+      joinLink: !u || !room ? null : isOwner ? `/j/${room.id}?k=${room.moderator_key}` : (open && allowed ? `/j/${room.id}` : null),
     };
     json(res, 200, { event: isOwner ? ownerView(e, extra) : eventView(e, extra) });
   });
@@ -197,6 +201,7 @@ export function registerEventRoutes(r, { createRoomRecord }) {
     const keys = Object.keys(data);
     if (keys.length) q(`UPDATE events SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ?`).run(...keys.map(k => data[k]), e.id);
     if (data.title) q('UPDATE rooms SET name = ? WHERE id = ?').run(data.title, e.room_id);
+    if (data.starts_at !== undefined && data.starts_at !== e.starts_at) scheduleChanged(e.id);   // pengingat mengikuti jadwal baru
     json(res, 200, { event: ownerView(q('SELECT * FROM events WHERE id = ?').get(e.id)) });
   });
 

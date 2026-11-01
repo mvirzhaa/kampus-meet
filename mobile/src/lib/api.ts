@@ -1,5 +1,7 @@
-// Klien API server UIKA Meet. Sesi memakai cookie (dikelola otomatis oleh jaringan Android),
-// perubahan data memakai header X-CSRF-Token, dan API di dalam meeting memakai header X-Seat.
+// Klien API server UIKA Meet. Sesi aplikasi memakai token (header Authorization) yang disimpan di
+// penyimpanan aman perangkat — tidak bergantung pada cookie jar Android yang bisa hilang saat aplikasi
+// ditutup paksa/dibersihkan sistem — sehingga pengguna tetap login sampai menekan Keluar.
+// Perubahan data memakai header X-CSRF-Token, dan API di dalam meeting memakai header X-Seat.
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { getStr, setStr } from './store';
@@ -7,6 +9,22 @@ import { getStr, setStr } from './store';
 export const DEFAULT_SERVER: string = (Constants.expoConfig?.extra as { defaultServer?: string } | undefined)?.defaultServer || 'https://meet.uika-bogor.ac.id';
 let server = DEFAULT_SERVER;
 let csrf: string | null = null;
+let sessionToken: string | null = null;
+export const APP_VERSION: string = Constants.expoConfig?.version || '1.0.0';
+export const APP_VERSION_CODE: number = Number((Constants.expoConfig?.android as { versionCode?: number } | undefined)?.versionCode) || 1;
+const CLIENT = `uika-meet-app/${APP_VERSION} (${Platform.OS})`;
+
+/** Token sesi tersimpan per alamat server (berganti server = perlu login lagi). */
+export async function loadSession() {
+  try { const s = JSON.parse((await getStr('session')) || 'null'); sessionToken = s && s.server === server && typeof s.token === 'string' ? s.token : null; }
+  catch { sessionToken = null; }
+  return sessionToken;
+}
+export async function setSessionToken(t: string | null) {
+  sessionToken = t;
+  await setStr('session', t ? JSON.stringify({ server, token: t }) : null);
+}
+export const hasSessionToken = () => !!sessionToken;
 
 export async function loadServer() {
   // Pratinjau browser: API diakses lewat asal (origin) yang sama
@@ -17,6 +35,7 @@ export function getServer() { return server; }
 export async function setServer(url: string) {
   let u = url.trim().replace(/\/+$/, '');
   if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
+  if (u !== server) await setSessionToken(null);
   server = u; await setStr('server', u === DEFAULT_SERVER ? null : u);
 }
 export function setCsrf(t: string | null) { csrf = t; }
@@ -25,11 +44,14 @@ export class ApiError extends Error { status: number; constructor(msg: string, s
 
 export async function api<T = any>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}): Promise<T> {
   const h: Record<string, string> = { Accept: 'application/json', ...headers };
+  // Aplikasi Android/iOS: sesi berbasis token. Pratinjau web (tanpa penyimpanan aman) tetap memakai cookie.
+  if (Platform.OS !== 'web') h['X-Client'] = CLIENT;
   if (csrf) h['X-CSRF-Token'] = csrf;
+  if (sessionToken) h.Authorization = `Bearer ${sessionToken}`;
   if (body !== undefined) h['Content-Type'] = 'application/json';
   let res: Response;
   try {
-    res = await fetch(server + path, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined, credentials: 'include' });
+    res = await fetch(server + path, { method, headers: h, body: body !== undefined ? JSON.stringify(body) : undefined, credentials: sessionToken ? 'omit' : 'include' });
   } catch {
     throw new ApiError('Tidak dapat terhubung ke server. Periksa koneksi internet Anda.', 0);
   }
@@ -54,11 +76,18 @@ export type EventInfo = {
   id: number; slug: string; title: string; description: string; speaker: string; category: string;
   startsAt: number; endsAt: number; organizer: string; hasPassword: boolean; certificate: boolean;
   joinOpen?: boolean; opensAt?: number; joinLink?: string | null; isOwner?: boolean; attendedMin?: number; certCode?: string | null;
+  inviteOnly?: boolean; invited?: boolean; allowed?: boolean; invites?: number; googleCalendarUrl?: string; roomId?: string;
 };
+export type Invitation = {
+  id: number; slug: string; title: string; speaker: string; category: string; startsAt: number; endsAt: number;
+  organizer: string; roomId: string; invitedAt: number; hasPassword: boolean; inviteOnly: boolean; joinOpen: boolean; googleCalendarUrl: string;
+};
+export type InviteRow = { userId: number; name: string; email: string; invitedAt: number; notifiedAt: number | null; remindedAt: number | null; joined: boolean; app: boolean };
+export type InviteList = { inviteOnly: boolean; invites: InviteRow[]; pending: number; mail: boolean; push: boolean; reminderMinutes: number; googleCalendarUrl: string };
 export type JoinInfo = {
   room: { id: string; name: string; owner: string; scheduledAt: number | null; durationMin: number | null; allowGuests: boolean };
   role: 'moderator' | 'viewer';
-  event: { title: string; slug: string; startsAt: number; endsAt: number; opensAt: number; open: boolean } | null;
+  event: { title: string; slug: string; startsAt: number; endsAt: number; opensAt: number; open: boolean; inviteOnly?: boolean; invited?: boolean; notInvited?: boolean } | null;
   needPassword: boolean; needLogin: boolean; user: { name: string } | null;
 };
 export type JoinResult = {

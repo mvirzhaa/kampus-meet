@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { Alert, Linking, ScrollView, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { Button, Card, T } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { api, getServer, parseMeetingInput, type EventInfo } from '@/lib/api';
@@ -31,7 +32,27 @@ export default function EventDetail() {
         {ev.certificate ? <T color="#92400E">🎓 Bersertifikat — hadir sesuai durasi minimum, sertifikat terbit otomatis.</T> : null}
       </Card>
       {ev.description ? <Card><T style={{ lineHeight: 22 }}>{ev.description}</T></Card> : null}
-      <Button title={me?.user ? 'Gabung ke Event' : 'Masuk untuk bergabung'} icon="enter-outline" onPress={join} />
+      {ev.invited && !ev.isOwner ? (
+        <Card style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: '#FFF7DC', borderColor: '#F5D77A' }}>
+          <Ionicons name="mail-open" size={22} color="#8A5A00" />
+          <T size={14} color="#6B4A00" style={{ flex: 1 }}>Anda diundang ke event ini. Anda masuk tanpa password dan akan diingatkan sebelum acara dimulai.</T>
+        </Card>
+      ) : null}
+      {me?.user && ev.allowed === false ? (
+        <Card style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+          <Ionicons name="lock-closed" size={20} color={C.muted} />
+          <T size={14} color={C.muted} style={{ flex: 1 }}>Event ini khusus peserta yang diundang penyelenggara.</T>
+        </Card>
+      ) : (
+        <Button title={me?.user ? (ev.isOwner ? 'Masuk sebagai Moderator' : 'Gabung ke Event') : 'Masuk untuk bergabung'} icon="enter-outline" onPress={join} />
+      )}
+      {ev.isOwner ? (
+        <Button title={`Kelola undangan${ev.invites ? ` (${ev.invites})` : ''}`} icon="person-add-outline" variant="ghost"
+          onPress={() => router.push({ pathname: '/event/invites', params: { id: String(ev.id), title: ev.title } })} />
+      ) : null}
+      {ev.googleCalendarUrl && Date.now() / 1000 < ev.endsAt && (ev.isOwner || ev.allowed !== false) ? (
+        <Button title="Simpan ke Google Calendar" icon="calendar-outline" variant="ghost" small onPress={() => Linking.openURL(ev.googleCalendarUrl!)} />
+      ) : null}
       {ev.certCode ? <Button title="Lihat sertifikat" icon="ribbon-outline" variant="ghost" onPress={() => Linking.openURL(`${getServer()}/sertifikat/${ev.certCode}`)} /> : null}
       {me?.user && ev.attendedMin ? <T size={13.5} color={C.muted} style={{ textAlign: 'center' }}>Kehadiran Anda tercatat {ev.attendedMin} menit.</T> : null}
     </ScrollView>

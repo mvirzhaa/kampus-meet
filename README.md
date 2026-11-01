@@ -11,6 +11,13 @@ Nama aplikasi, nama kampus, dan domain email bisa diganti lewat `.env` (`APP_NAM
 - **Masuk lewat SSO E-Portal UIKA** (opsional): civitas klik modul Meet di dasbor E-Portal dan langsung masuk; peran institusional (dosen/mahasiswa/staf/admin) ikut terbawa. Login & daftar lokal tetap ada untuk peserta luar kampus.
 - Login & daftar (bisa dibatasi ke email kampus). Pengguna pertama yang mendaftar otomatis menjadi **admin**; satu akun bisa dikunci sebagai **super-admin** lewat `ADMIN_EMAIL` di `.env`.
 - **Panel Admin** (`/admin`, khusus admin): kelola **kategori event** (tambah/ubah nama/nonaktifkan/hapus — tanpa perlu ubah kode), kelola **pengguna** (cari, jadikan admin atau turunkan, nonaktifkan akun, reset password, buka kunci login), serta lihat & hapus **seluruh meeting dan event** milik siapa pun.
+- **Panel Admin** juga berisi: **Statistik** (grafik harian/mingguan/bulanan: event & meeting dibuat, pengguna yang mengakses, pengguna paling aktif), **ubah semua event**, **Sertifikat Peserta** (semua peserta hadir + status sertifikat, unduh CSV), dan **Masukan** (rating & komentar dari chatbot serta masukan pengguna login). Semua tabel admin berhalaman dan bisa dicari/difilter.
+- **Chatbot halaman depan** (Indonesia/English): menyapa "Assalamualaikum, Kak", menjawab dari basis pengetahuan bawaan server, dan meminta rating 1–5 bintang + masukan di akhir percakapan. Opsional: isi `CHATBOT_AI_KEY` (Claude API) agar pertanyaan bebas dijawab AI dengan basis pengetahuan yang sama.
+- Pengguna yang login dapat mengirim **masukan teks** lewat Dasbor → Masukan.
+- **Undangan event**: pembuat event (atau admin) memilih pengguna terdaftar yang boleh hadir (akun admin tidak ditampilkan), dari web (Dasbor → Event → **Undang**) maupun aplikasi Android (Event → **Kelola**). Satu tombol **Kirim undangan** mengirim email (tautan gabung, tombol **Simpan ke Google Calendar**, lampiran `.ics`) dan push notification ke aplikasi. Mode **Khusus peserta undangan** (aktif otomatis saat undangan pertama ditambahkan, bisa dimatikan) membuat hanya peserta undangan yang bisa masuk; peserta undangan tidak perlu password event. Peserta melihat undangannya di Dasbor → Event → *Undangan untuk saya* dan di aplikasi.
+- **Pengingat otomatis 30 menit sebelum event** (`REMINDER_MINUTES`): push notification ke aplikasi + email ke setiap peserta undangan dan penyelenggara. Bila jadwal event diubah, pengingat mengikuti jadwal baru dan undangan ditandai perlu dikirim ulang.
+- **Peralihan moderator otomatis**: bila moderator terputus/keluar dan tidak ada moderator lain, ±8 detik kemudian peran moderator dialihkan ke peserta yang hadir paling awal (pengguna login didahulukan dari tamu) sehingga meeting tetap berjalan. Bila koneksi moderator putus mendadak (bukan menutup tab), server media baru mendeteksinya ±20 detik kemudian.
+- **Panel Admin → Aplikasi Android**: unggah APK terbaru (versi dibaca otomatis dari APK) beserta keterangan pembaruan. Halaman depan menampilkan tombol **Unduh aplikasi Android** + QR + catatan pembaruan; aplikasi yang terpasang menawarkan pembaruan ke pengguna.
 - Dasbor: daftar meeting (ID, password, link moderator & peserta, salin undangan, ubah, rekap kehadiran + unduh CSV, hapus), event, sertifikat, akun.
 - Event: buat event (jadwal, kuota, narasumber, durasi minimum hadir), pendaftaran peserta, kehadiran tercatat otomatis, **sertifikat digital otomatis** dengan halaman verifikasi publik dan siap cetak/PDF.
 
@@ -41,7 +48,21 @@ Folder `mobile/` berisi aplikasi Android (React Native + Expo). Aplikasi ini mem
 - meeting dengan tampilan ala Zoom mobile, termasuk **presentasi PDF + whiteboard** (dirender lewat halaman `/m/pres`);
 - **berbagi layar HP** (moderator/presenter), tombol **mulai rekam** & **mulai transkripsi** untuk moderator;
 - transkripsi + terjemahan Indonesia ⇄ Inggris di perangkat;
-- pengingat azan 5 waktu.
+- pengingat azan 5 waktu;
+- **undangan event** (lihat undangan, kelola undangan untuk event milik sendiri) dan **pengingat 30 menit sebelum event**;
+- **tetap login sampai pengguna menekan Keluar** (token sesi tersimpan aman di HP, berlaku `SESSION_DAYS_APP` hari dan diperpanjang otomatis setiap dipakai; saat offline/server gangguan status login tidak hilang);
+- **pemberitahuan versi baru** dari APK yang diunggah admin.
+
+**Merilis versi baru:** naikkan `version` di `mobile/app.json` (mis. 1.1.0 → 1.2.0), jalankan workflow *Android APK*, lalu unggah APK hasilnya di **Panel Admin → Aplikasi Android** beserta keterangan pembaruan. `versionCode` dinaikkan otomatis oleh workflow (nomor run GitHub Actions) — Android hanya mau memperbarui aplikasi bila `versionCode` APK baru lebih besar. APK harus ditandatangani dengan kunci yang sama dengan versi terpasang (pakai secret keystore di bawah), kalau tidak pengguna harus mencopot versi lama dulu.
+
+### Undangan, email & push notification
+
+1. **Email (SMTP)** — isi `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` di `.env`, restart, lalu buka Dasbor → **Integrasi** → *Kirim email uji ke saya*. Email dikirim lewat antrean (dicoba ulang otomatis bila server SMTP sedang gangguan); status antrean dan error terakhir tampil di halaman yang sama.
+2. **Push notification Android (Firebase)**:
+   - Buat project di [Firebase Console](https://console.firebase.google.com) → *Add app* → Android, paket `id.ac.uikabogor.meet` → unduh `google-services.json`.
+   - Simpan isi file itu sebagai secret GitHub **`GOOGLE_SERVICES_JSON`** (Settings → Secrets and variables → Actions), lalu bangun ulang APK. Tanpa secret ini APK tetap dibangun, hanya saja pengingat event memakai notifikasi lokal di HP (undangan baru tidak muncul sebagai push).
+   - *Project settings → Service accounts → Generate new private key* → simpan sebagai `secrets/firebase-sa.json` di server dan isi `FCM_SERVICE_ACCOUNT_FILE=/app/secrets/firebase-sa.json` (Docker) atau path lengkapnya (tanpa Docker). Restart, cek di Dasbor → Integrasi.
+3. Pengingat dikirim `REMINDER_MINUTES` (bawaan 30) menit sebelum event ke peserta undangan dan penyelenggara.
 
 **Tautan meeting di HP Android dibuka di aplikasi lebih dulu.** Halaman gabung (`/j/…`) di Chrome Android otomatis mencoba membuka aplikasi; bila belum terpasang, peserta tetap lanjut di browser. Agar tautan dari WhatsApp/email langsung terbuka di aplikasi tanpa lewat Chrome (Android App Links), isi `ANDROID_CERT_SHA256` di `.env` dengan sidik jari SHA-256 sertifikat penanda tangan APK (`keytool -printcert -jarfile uika-meet.apk`), lalu pasang ulang aplikasinya. Server menyajikannya di `/.well-known/assetlinks.json`. Opsional: `ANDROID_APP_URL` = link unduhan APK yang ditampilkan di halaman gabung.
 

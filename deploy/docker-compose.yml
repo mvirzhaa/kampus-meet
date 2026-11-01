@@ -54,6 +54,7 @@ services:
     volumes:
       - appdata:/app/data
       - ../recordings:/recordings
+      - ../secrets:/app/secrets:ro        # mis. firebase-sa.json (push notification); folder ini di-.gitignore
     read_only: true
     tmpfs: [/tmp]
     security_opt: ["no-new-privileges:true"]

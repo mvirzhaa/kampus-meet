@@ -2,9 +2,9 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dasbor — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
+<title>Dasbor — APP</title><link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml"><link rel="icon" href="/favicon.ico?v=3" sizes="48x48"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3"><link rel="manifest" href="/site.webmanifest?v=3"><meta name="theme-color" content="#022c22">
 <meta name="robots" content="noindex">
-<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-GU22U7R6.css">
+<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-3XHAGIGC.css">
 </head>
 <body>
 <div class="topbar"></div>
@@ -27,6 +27,7 @@
           <a href="/panduan"><i data-i="book" data-s="18"></i>Cara Penggunaan</a>
           <a href="/panduan#faq"><i data-i="info" data-s="18"></i>FAQ &amp; Bantuan</a>
           <a href="/panduan#keamanan"><i data-i="shield-check" data-s="18"></i>Keamanan &amp; Privasi</a>
+          <a href="/#aplikasi"><i data-i="smartphone" data-s="18"></i>Unduh Aplikasi Android</a>
         </div>
       </div>
       <a href="/#fitur">Fitur</a>
@@ -46,6 +47,7 @@
       <a href="#event" data-sec="event"><i data-i="calendar"></i>Event</a>
       <a href="#sertifikat" data-sec="sertifikat"><i data-i="award"></i>Sertifikat</a>
       <a href="#akun" data-sec="akun"><i data-i="user-cog"></i>Akun</a>
+      <a href="#masukan" data-sec="masukan"><i data-i="message-circle"></i>Masukan</a>
       <a href="#integrasi" data-sec="integrasi" id="side-int" hidden><i data-i="settings"></i>Integrasi</a>
       <a href="/admin" id="side-admin" hidden><i data-i="shield-check"></i>Panel Admin</a>
     </aside>
@@ -61,6 +63,10 @@
       </section>
       <section data-panel="event" hidden>
         <div class="dash-head"><h1>Event</h1><button class="btn btn-purple" id="new-event"><i data-i="calendar-plus" data-s="18"></i>Buat Event</button></div>
+        <div id="my-inv-wrap" hidden>
+          <h3>Undangan untuk saya</h3>
+          <div class="my-inv" id="my-inv"></div>
+        </div>
         <h3>Event yang saya selenggarakan</h3>
         <div class="room-list" id="ev-org"></div>
         <h3 style="margin-top:30px">Event yang pernah saya ikuti</h3>
@@ -97,9 +103,26 @@
           </form>
         </div>
       </section>
+      <section data-panel="masukan" hidden>
+        <div class="dash-head"><h1>Masukan untuk Sistem</h1></div>
+        <div class="section-card">
+          <h3>Kirim masukan</h3>
+          <p class="ev-meta">Ceritakan kendala, ide fitur, atau saran perbaikan UIKA Meet. Masukan Anda dibaca langsung oleh admin.</p>
+          <form id="f-fb">
+            <div class="field"><label for="fb-text">Masukan</label>
+              <textarea id="fb-text" name="text" rows="5" required minlength="5" maxlength="2000" placeholder="Tulis masukan Anda di sini…"></textarea>
+              <small><span id="fb-count">0</span>/2000 karakter</small></div>
+            <button class="btn btn-primary" type="submit"><i data-i="send" data-s="17"></i>Kirim Masukan</button>
+          </form>
+        </div>
+        <div class="section-card">
+          <h3>Masukan yang pernah Anda kirim</h3>
+          <div id="my-fb" class="my-fb"></div>
+        </div>
+      </section>
     </div>
   </div>
 </main>
-<script type="module" src="/assets/dashboard-L62NPBWC.js"></script>
+<script type="module" src="/assets/dashboard-VCMTKZVH.js"></script>
 </body>
 </html>

@@ -7,7 +7,7 @@ import {
   LayoutGrid, CircleDot, Signal, Volume2, Headphones, Lock, LockOpen, Crown, Smile, ChartColumn, Send, Search, Menu, LogIn, DoorOpen,
   Sparkles, Image, Sun, Eye, EyeOff, FileText, Info, TriangleAlert, Laptop, BookOpen, Mail, MapPin, Phone, UserCheck, UserX, Shield,
   RefreshCw, Pencil, Captions, CaptionsOff, AudioLines, ListChecks, MessageCircle, FileUp, Gauge, LayoutPanelTop, CircleCheck, Ban, UserCog, Speaker, Radio, Pin, Keyboard,
-  Languages, Split, Smartphone, MoonStar, Palette, FileDown, Clapperboard,
+  Languages, Split, Smartphone, MoonStar, Palette, FileDown, Clapperboard, Bell, MailCheck, UsersRound,
 } from 'lucide';
 
 const SET = {
@@ -26,6 +26,7 @@ const SET = {
   'message-circle': MessageCircle, 'file-up': FileUp, gauge: Gauge, layout: LayoutPanelTop, 'circle-check': CircleCheck, ban: Ban,
   'user-cog': UserCog, speaker: Speaker, radio: Radio, 'pin-icon': Pin, keyboard: Keyboard, captions: Captions, 'captions-off': CaptionsOff, 'audio-lines': AudioLines,
   languages: Languages, split: Split, smartphone: Smartphone, 'moon-star': MoonStar, palette: Palette, 'file-down': FileDown, clapper: Clapperboard,
+  bell: Bell, 'mail-check': MailCheck, 'users-round': UsersRound,
 };
 
 const NS = 'http://www.w3.org/2000/svg';

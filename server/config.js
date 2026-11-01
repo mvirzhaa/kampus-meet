@@ -38,7 +38,11 @@ export const config = {
 
   dataDir: path.resolve(root, env('DATA_DIR', 'data')),
   maxUploadMb: int('MAX_UPLOAD_MB', 30),
+  // Ukuran maksimal file APK yang diunggah admin (dikirim bertahap per 8 MB)
+  apkMaxMb: int('APK_MAX_MB', 300),
   sessionDays: int('SESSION_DAYS', 7),
+  // Sesi aplikasi mobile: tetap login sampai pengguna menekan Keluar (diperpanjang otomatis setiap dipakai)
+  sessionDaysApp: int('SESSION_DAYS_APP', 365),
 
   livekit: {
     // URL internal (server → LiveKit API), mis. http://livekit:7880
@@ -67,9 +71,39 @@ export const config = {
     // Format bebas (dengan/tanpa titik dua) → dinormalkan menjadi AA:BB:…
     certSha256: env('ANDROID_CERT_SHA256', '').split(',').map(s => s.replace(/[^0-9a-f]/gi, '').toUpperCase())
       .filter(s => s.length === 64).map(s => s.match(/../g).join(':')),
-    // Opsional: alamat unduhan APK, ditampilkan bila aplikasi belum terpasang
+    // Opsional: alamat unduhan APK eksternal. Bila admin sudah mengunggah APK lewat Panel Admin → Aplikasi Android,
+    // unduhan memakai file itu (/unduh/android) dan nilai ini diabaikan.
     downloadUrl: env('ANDROID_APP_URL', ''),
   },
+  // Chatbot halaman depan. Tanpa kunci: menjawab dari basis pengetahuan (FAQ) dwibahasa di server.
+  // Dengan CHATBOT_AI_KEY (Claude API): pertanyaan dijawab AI memakai basis pengetahuan yang sama.
+  chatbot: {
+    apiKey: env('CHATBOT_AI_KEY', ''),
+    model: env('CHATBOT_AI_MODEL', 'claude-haiku-5-5'),
+    url: env('CHATBOT_AI_URL', 'https://api.anthropic.com/v1/messages'),
+    version: env('CHATBOT_AI_VERSION', '2026-10-21'),
+  },
+  // Email undangan & pengingat event (SMTP). Kosongkan SMTP_HOST untuk mematikan email.
+  // Port 465 = TLS langsung (SMTP_SECURE=true otomatis); 587/25 = STARTTLS bila server mendukung.
+  mail: {
+    host: env('SMTP_HOST', ''),
+    port: int('SMTP_PORT', 587),
+    secure: bool('SMTP_SECURE', int('SMTP_PORT', 587) === 465),
+    startTls: bool('SMTP_STARTTLS', true),
+    user: env('SMTP_USER', ''),
+    pass: env('SMTP_PASS', ''),
+    from: env('SMTP_FROM', ''),
+    gapMs: int('SMTP_GAP_MS', 300),
+  },
+  // Push notification aplikasi Android (Firebase Cloud Messaging HTTP v1). Kosong = mati.
+  push: {
+    saFile: env('FCM_SERVICE_ACCOUNT_FILE', ''),
+    saJson: env('FCM_SERVICE_ACCOUNT_JSON', ''),
+    apiBase: env('FCM_API_BASE', 'https://fcm.googleapis.com').replace(/\/$/, ''),
+    tokenUrl: env('FCM_TOKEN_URL', ''),
+  },
+  // Pengingat otomatis (push + email) sekian menit sebelum event dimulai
+  reminderMinutes: int('REMINDER_MINUTES', 30),
   // Sertifikat hanya untuk peserta dengan durasi (masuk pertama → keluar terakhir) minimal sekian menit
   certMinMinutes: int('CERT_MIN_MINUTES', 15),
   recording: {

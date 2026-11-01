@@ -68,6 +68,8 @@ export function useMeeting(session: Session, opts: { trTo: Lang2 | '' ; onLeft: 
   // yang baru masuk bila aplikasi ini menjadi "pemimpin" sinkronisasi (moderator dengan identitas terkecil).
   const wbRef = useRef(new Map<string, Shape[]>());
   const [wbVer, setWbVer] = useState(0);
+  // Naik setiap kali atribut/izin peserta berubah (mis. peralihan moderator) agar layar dirender ulang
+  const [attrTick, setAttrTick] = useState(0);
   const notesRef = useRef<{ text: string; v: number; by: string }>({ text: '', v: 0, by: '' });
   const chatRef = useRef<ChatMsg[]>([]);
   const chatOpen = useRef(false);
@@ -185,6 +187,13 @@ export function useMeeting(session: Session, opts: { trTo: Lang2 | '' ; onLeft: 
         if (m?.t === 'cap-tr') receiveTr(m);
         else if (m?.t === 'bo-move' && m.identity === me().identity) { optsRef.current.toast(m.n ? 'Moderator memindahkan Anda ke ruang kelompok' : 'Moderator memindahkan Anda ke ruang utama'); setTimeout(() => goRoomRef.current(parseInt(m.n, 10) || 0), 1200); }
         else if (m?.t === 'bo-msg' && metaRef.current.bo) sys(`📣 Pengumuman dari ${str(m.from || 'Moderator', 60)}: ${str(m.text, 300)}`);
+        // Moderator terputus → server mengalihkan peran moderator ke peserta yang hadir paling awal
+        else if (m?.t === 'mod-handover') {
+          const who = str(m.name, 60) || 'Peserta'; const prev = str(m.left, 60);
+          if (m.identity === me().identity) optsRef.current.toast(`${prev ? `Moderator (${prev})` : 'Moderator'} terputus. Anda sekarang moderator agar meeting tetap berjalan.`);
+          sys(`${who} sekarang menjadi moderator${prev ? ` menggantikan ${prev}` : ''} (moderator sebelumnya terputus).`);
+          setAttrTick(t => t + 1);
+        }
         // Perekam server meminta isi whiteboard/catatan terkini
         else if (m?.t === 'sync-for' && typeof m.id === 'string' && leaderIdentity() === me().identity) sendSync(m.id.slice(0, 80));
         return;
@@ -293,12 +302,16 @@ export function useMeeting(session: Session, opts: { trTo: Lang2 | '' ; onLeft: 
         } catch { /* abaikan */ }
       });
     } catch { /* sudah terdaftar */ }
+    // Peran (atribut "role") berubah, mis. dijadikan moderator → tampilan tombol moderator ikut diperbarui
+    const onAttrs = () => setAttrTick(t => t + 1);
     room.on(RoomEvent.DataReceived, onData).on(RoomEvent.ParticipantConnected, onJoin).on(RoomEvent.ParticipantDisconnected, onLeave)
-      .on(RoomEvent.RoomMetadataChanged, onMeta).on(RoomEvent.ConnectionStateChanged, onState).on(RoomEvent.Disconnected, onDisc);
+      .on(RoomEvent.RoomMetadataChanged, onMeta).on(RoomEvent.ConnectionStateChanged, onState).on(RoomEvent.Disconnected, onDisc)
+      .on(RoomEvent.ParticipantAttributesChanged, onAttrs).on(RoomEvent.ParticipantPermissionsChanged, onAttrs);
     return () => {
       try { room.unregisterTextStreamHandler('km-sync'); } catch { /* abaikan */ }
       room.off(RoomEvent.DataReceived, onData).off(RoomEvent.ParticipantConnected, onJoin).off(RoomEvent.ParticipantDisconnected, onLeave)
-        .off(RoomEvent.RoomMetadataChanged, onMeta).off(RoomEvent.ConnectionStateChanged, onState).off(RoomEvent.Disconnected, onDisc);
+        .off(RoomEvent.RoomMetadataChanged, onMeta).off(RoomEvent.ConnectionStateChanged, onState).off(RoomEvent.Disconnected, onDisc)
+        .off(RoomEvent.ParticipantAttributesChanged, onAttrs).off(RoomEvent.ParticipantPermissionsChanged, onAttrs);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room]);
@@ -437,5 +450,5 @@ export function useMeeting(session: Session, opts: { trTo: Lang2 | '' ; onLeft: 
   if (Platform.OS === 'web') (globalThis as unknown as { __kmDebug?: object }).__kmDebug = { myFinal, myInterim, setTr, room };
 
   const shapesFor = useCallback((key: string) => wbRef.current.get(key) || [], []);
-  return { room, conn, meta, chat, unread, hands, reacts, caps, lines, trs, error, actions, myFinal, myInterim, myHand, wbVer, shapesFor };
+  return { room, conn, meta, chat, unread, hands, reacts, caps, lines, trs, error, actions, myFinal, myInterim, myHand, wbVer, shapesFor, attrTick };
 }

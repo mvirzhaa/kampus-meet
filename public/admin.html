@@ -2,9 +2,9 @@
 <html lang="id">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Panel Admin — APP</title><link rel="icon" href="/favicon.svg" type="image/svg+xml"><link rel="icon" href="/favicon.ico" sizes="32x32"><link rel="apple-touch-icon" href="/apple-touch-icon.png"><meta name="theme-color" content="#070b24">
+<title>Panel Admin — APP</title><link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml"><link rel="icon" href="/favicon.ico?v=3" sizes="48x48"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3"><link rel="manifest" href="/site.webmanifest?v=3"><meta name="theme-color" content="#022c22">
 <meta name="robots" content="noindex">
-<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-GU22U7R6.css">
+<link rel="preload" href="/fonts/pjs-latin.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/assets/site-3XHAGIGC.css">
 </head>
 <body>
 <div class="topbar"></div>
@@ -27,6 +27,7 @@
           <a href="/panduan"><i data-i="book" data-s="18"></i>Cara Penggunaan</a>
           <a href="/panduan#faq"><i data-i="info" data-s="18"></i>FAQ &amp; Bantuan</a>
           <a href="/panduan#keamanan"><i data-i="shield-check" data-s="18"></i>Keamanan &amp; Privasi</a>
+          <a href="/#aplikasi"><i data-i="smartphone" data-s="18"></i>Unduh Aplikasi Android</a>
         </div>
       </div>
       <a href="/#fitur">Fitur</a>
@@ -42,17 +43,54 @@
 <main class="page">
   <div class="container dash">
     <aside class="side" aria-label="Menu admin">
+      <a href="#statistik" data-sec="statistik"><i data-i="poll"></i>Statistik</a>
       <a href="#pengaturan" data-sec="pengaturan"><i data-i="settings"></i>Pengaturan</a>
       <a href="#kategori" data-sec="kategori"><i data-i="list-checks"></i>Kategori Event</a>
       <a href="#pengguna" data-sec="pengguna"><i data-i="users"></i>Pengguna</a>
       <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Semua Meeting</a>
       <a href="#event" data-sec="event"><i data-i="calendar"></i>Semua Event</a>
+      <a href="#sertifikat" data-sec="sertifikat"><i data-i="award"></i>Sertifikat Peserta</a>
+      <a href="#masukan" data-sec="masukan"><i data-i="message-circle"></i>Masukan <b class="side-badge" id="fb-badge" hidden></b></a>
+      <a href="#android" data-sec="android"><i data-i="smartphone"></i>Aplikasi Android</a>
       <a href="#azan" data-sec="azan"><i data-i="moon-star"></i>Notifikasi Azan</a>
       <a href="/dashboard#integrasi"><i data-i="settings"></i>Integrasi</a>
       <a href="/dashboard"><i data-i="grid"></i>Kembali ke Dasbor</a>
     </aside>
     <div>
       <div class="stats" id="overview" hidden></div>
+
+      <section data-panel="android" hidden>
+        <div class="dash-head"><h1>Aplikasi Android</h1></div>
+        <p class="apk-intro">Unggah file APK terbaru beserta keterangan pembaruannya. Versi terbit muncul di halaman depan sebagai tombol <b>Unduh aplikasi Android</b>, dan aplikasi yang sudah terpasang akan menawarkan pembaruan ke pengguna.</p>
+        <div class="section-card apk-up">
+          <h3>Unggah versi baru</h3>
+          <form id="apk-form" autocomplete="off">
+            <label class="apk-drop" id="apk-drop" for="apk-file">
+              <i data-i="file-up" data-s="28"></i>
+              <span id="apk-pick"><b>Pilih file APK</b> atau tarik ke sini</span>
+              <small id="apk-limit">File .apk, dikirim bertahap sehingga aman untuk file besar.</small>
+              <input type="file" id="apk-file" accept=".apk,application/vnd.android.package-archive" hidden>
+            </label>
+            <div class="field">
+              <label for="apk-notes">Keterangan pembaruan</label>
+              <textarea id="apk-notes" rows="6" maxlength="4000" required placeholder="Contoh:&#10;• Undangan event dan pengingat 30 menit sebelum acara&#10;• Sesi login tetap aktif sampai keluar&#10;• Perbaikan tampilan presentasi"></textarea>
+              <small>Satu poin per baris. Tampil di halaman depan dan di pemberitahuan pembaruan aplikasi.</small>
+            </div>
+            <details class="apk-manual">
+              <summary>Versi manual (hanya bila versi tidak terbaca otomatis dari APK)</summary>
+              <div class="grid-2">
+                <div class="field"><label for="apk-ver">Versi (versionName)</label><input id="apk-ver" placeholder="1.2.0" maxlength="30"></div>
+                <div class="field"><label for="apk-code">versionCode</label><input id="apk-code" type="number" min="1" placeholder="12"></div>
+              </div>
+            </details>
+            <label class="check"><input type="checkbox" id="apk-pub" checked> Langsung terbitkan (tampil di halaman depan & aplikasi)</label>
+            <div class="apk-progress" id="apk-progress" hidden><div class="apk-bar"><span id="apk-bar"></span></div><small id="apk-ptext"></small></div>
+            <div class="row-actions"><button class="btn btn-primary" id="apk-submit" type="submit"><i data-i="upload" data-s="17"></i>Unggah &amp; terbitkan</button></div>
+          </form>
+        </div>
+        <h3 style="margin-top:28px">Riwayat rilis</h3>
+        <div class="room-list" id="apk-list"></div>
+      </section>
 
       <section data-panel="azan" hidden>
         <div class="dash-head"><h1>Notifikasi Azan</h1></div>
@@ -78,7 +116,10 @@
       <section data-panel="kategori" hidden>
         <div class="dash-head">
           <h1>Kategori Event</h1>
-          <button class="btn btn-primary" id="cat-new"><i data-i="plus" data-s="18"></i>Tambah Kategori</button>
+          <div class="toolbar">
+            <input id="c-q" type="search" placeholder="Cari kategori…" maxlength="80" aria-label="Cari kategori">
+            <button class="btn btn-primary" id="cat-new"><i data-i="plus" data-s="18"></i>Tambah Kategori</button>
+          </div>
         </div>
         <p class="ev-meta">Kategori yang dinonaktifkan tidak muncul lagi saat membuat event baru, tetapi event lama yang memakainya tetap utuh.</p>
         <div id="cats"></div>
@@ -87,7 +128,11 @@
       <section data-panel="pengguna" hidden>
         <div class="dash-head">
           <h1>Pengguna</h1>
-          <div class="field" style="margin:0"><input id="u-q" type="search" placeholder="Cari nama atau email…" maxlength="80" aria-label="Cari pengguna"></div>
+          <div class="toolbar">
+            <input id="u-q" type="search" placeholder="Cari nama, email, peran E-Portal…" maxlength="80" aria-label="Cari pengguna">
+            <select id="u-role" aria-label="Filter peran"><option value="">Semua peran</option><option value="admin">Admin</option><option value="user">Pengguna</option></select>
+            <select id="u-status" aria-label="Filter status"><option value="">Semua status</option><option value="active">Aktif</option><option value="disabled">Nonaktif</option></select>
+          </div>
         </div>
         <div id="users"></div>
       </section>
@@ -95,7 +140,7 @@
       <section data-panel="meeting" hidden>
         <div class="dash-head">
           <h1>Semua Meeting</h1>
-          <div class="field" style="margin:0"><input id="r-q" type="search" placeholder="Cari nama, ID room, pemilik…" maxlength="80" aria-label="Cari meeting"></div>
+          <div class="toolbar"><input id="r-q" type="search" placeholder="Cari nama, ID room, pemilik…" maxlength="80" aria-label="Cari meeting"></div>
         </div>
         <div class="room-list" id="rooms"></div>
       </section>
@@ -103,13 +148,56 @@
       <section data-panel="event" hidden>
         <div class="dash-head">
           <h1>Semua Event</h1>
-          <div class="field" style="margin:0"><input id="e-q" type="search" placeholder="Cari judul, kategori, penyelenggara…" maxlength="80" aria-label="Cari event"></div>
+          <div class="toolbar">
+            <input id="e-q" type="search" placeholder="Cari judul, kategori, penyelenggara…" maxlength="80" aria-label="Cari event">
+            <select id="e-when" aria-label="Filter waktu"><option value="">Semua waktu</option><option value="upcoming">Mendatang</option><option value="live">Berlangsung</option><option value="past">Selesai</option></select>
+          </div>
         </div>
         <div class="room-list" id="events"></div>
+      </section>
+
+      <section data-panel="statistik" hidden>
+        <div class="dash-head"><h1>Statistik Penggunaan</h1></div>
+        <div class="seg" role="radiogroup" aria-label="Periode statistik" id="st-period">
+          <button type="button" role="radio" data-p="day" aria-checked="true">Harian <small>30 hari</small></button>
+          <button type="button" role="radio" data-p="week" aria-checked="false">Mingguan <small>12 minggu</small></button>
+          <button type="button" role="radio" data-p="month" aria-checked="false">Bulanan <small>12 bulan</small></button>
+        </div>
+        <div id="stats"></div>
+      </section>
+
+      <section data-panel="sertifikat" hidden>
+        <div class="dash-head">
+          <h1>Sertifikat Peserta</h1>
+          <a class="btn btn-ghost" id="cert-csv" href="/api/admin/certificates?format=csv"><i data-i="download" data-s="17"></i>Unduh CSV</a>
+        </div>
+        <p class="ev-meta">Semua peserta yang hadir di event, beserta durasi kehadiran dan sertifikatnya. Sertifikat terbit otomatis bila durasi memenuhi syarat event.</p>
+        <div class="toolbar wide">
+          <input id="ce-q" type="search" placeholder="Cari nama, email, event, kode sertifikat…" maxlength="80" aria-label="Cari sertifikat">
+          <select id="ce-event" aria-label="Filter event"><option value="">Semua event</option></select>
+          <select id="ce-status" aria-label="Filter status"><option value="">Semua yang hadir</option><option value="cert">Sertifikat terbit</option><option value="nocert">Belum dapat sertifikat</option></select>
+        </div>
+        <div id="cert-sum" class="sum-row"></div>
+        <div id="certs"></div>
+      </section>
+
+      <section data-panel="masukan" hidden>
+        <div class="dash-head">
+          <h1>Masukan</h1>
+          <button class="btn btn-ghost" id="fb-readall" type="button"><i data-i="check" data-s="17"></i>Tandai semua dibaca</button>
+        </div>
+        <div id="fb-sum"></div>
+        <div class="toolbar wide">
+          <input id="fb-q" type="search" placeholder="Cari isi masukan, nama, email…" maxlength="80" aria-label="Cari masukan">
+          <select id="fb-source" aria-label="Sumber"><option value="">Semua sumber</option><option value="chatbot">Chatbot (rating)</option><option value="user">Pengguna login</option></select>
+          <select id="fb-rating" aria-label="Rating"><option value="">Semua rating</option><option value="5">★★★★★ 5</option><option value="4">★★★★ 4</option><option value="3">★★★ 3</option><option value="2">★★ 2</option><option value="1">★ 1</option></select>
+          <label class="check" style="margin:0"><input type="checkbox" id="fb-unread"> Belum dibaca</label>
+        </div>
+        <div id="fbs"></div>
       </section>
     </div>
   </div>
 </main>
-<script type="module" src="/assets/admin-7MQWISXK.js"></script>
+<script type="module" src="/assets/admin-YJ7A5EWL.js"></script>
 </body>
 </html>

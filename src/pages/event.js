@@ -1,5 +1,6 @@
 import { initSite, $, h, icon, api, fmtDate, fmtTime, getMe, copyText } from '../shared/common.js';
 import { emptyState } from '../shared/ui.js';
+import { inviteManager } from '../shared/invites.js';
 await initSite();
 document.getElementById('yr').textContent = new Date().getFullYear();
 const slug = location.pathname.split('/')[2];
@@ -19,7 +20,8 @@ async function load() {
   if (e.isOwner) action = h('a', { class: 'btn btn-primary', href: e.joinLink }, icon('door', 18), 'Masuk sebagai Moderator');
   else if (ended) action = h('span', { class: 'pill gray', text: 'Event telah berakhir' });
   else if (!user) action = h('a', { class: 'btn btn-primary', href: '/login?next=' + encodeURIComponent(location.pathname) }, icon('log-in', 18), 'Login untuk Bergabung');
-  else if (full) action = h('span', { class: 'pill red', text: 'Kuota peserta penuh' });
+  else if (!e.allowed) action = h('span', { class: 'pill invite' }, icon('lock', 14), 'Khusus peserta yang diundang penyelenggara');
+  else if (full && !e.invited) action = h('span', { class: 'pill red', text: 'Kuota peserta penuh' });
   else if (e.joinLink) action = h('a', { class: 'btn btn-violet', href: e.joinLink }, icon('door', 18), 'Gabung ke Event');
   else action = h('span', { class: 'pill green' }, icon('clock', 14), `Room dibuka ${fmtDate(e.opensAt)}, pukul ${fmtTime(e.opensAt)}`);
 
@@ -45,7 +47,10 @@ async function load() {
           h('span', { class: 'ev-meta' }, icon('building', 17), `Penyelenggara: ${e.organizer}`),
           e.hasPassword ? h('span', { class: 'ev-meta' }, icon('lock', 17), 'Berpassword') : null,
           e.certificate ? h('span', { class: 'ev-meta' }, icon('award', 17), `Sertifikat (min. ${e.minAttendMin} menit)`) : null),
-        h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, action),
+        h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, action,
+          e.isOwner ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => inviteManager(e, { onClose: (c) => { if (c) load(); } }) }, icon('user-plus', 18), `Undang peserta${e.invites ? ` (${e.invites})` : ''}`) : null,
+          e.invited && !e.isOwner && !ended ? h('span', { class: 'pill invite' }, icon('mail-check', 14), 'Anda diundang') : null,
+          !ended && e.googleCalendarUrl && (e.isOwner || e.allowed) ? h('a', { class: 'btn btn-ghost', href: e.googleCalendarUrl, target: '_blank', rel: 'noopener' }, icon('calendar-plus', 18), 'Google Calendar') : null),
         ownerInfo,
         e.joined && !e.isOwner ? h('div', { class: 'alert info' }, icon('info', 18), h('span', { text: e.certCode
           ? `Kehadiran ${e.attendedMin} menit. Sertifikat Anda sudah terbit.` : `Kehadiran tercatat: ${e.attendedMin} menit.` }),

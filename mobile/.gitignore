@@ -47,3 +47,6 @@ yarn-error.*
 # Keluaran build modul lokal (dibuat Gradle, bukan sumber)
 modules/*/android/build/
 modules/*/android/.gradle/
+
+# Firebase (push notification) — diisi lewat secret GOOGLE_SERVICES_JSON di GitHub Actions
+google-services.json

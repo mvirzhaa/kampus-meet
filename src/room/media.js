@@ -20,6 +20,11 @@ export function canPublish(source) {
   return !p.canPublishSources?.length || p.canPublishSources.includes(PROTO_SRC[source]);
 }
 
+/** Layar penuh lewat Fullscreen API atau F11 (jendela browser seukuran layar). */
+// F11 di laptop/PC: jendela tanpa bilah browser (outer = inner) dan seukuran layar. Tidak berlaku di HP,
+// karena di HP bilah alamat yang tersembunyi saat menggulir juga membuat tinggi jendela = tinggi layar.
+export const isFullscreen = () => !!document.fullscreenElement
+  || (matchMedia('(pointer: fine)').matches && outerHeight - innerHeight < 4 && innerHeight >= screen.height - 1 && innerWidth >= screen.width - 1 && screen.height > 0);
 export const getLayout = () => layout;
 export function setLayout(v) {
   if (!LAYOUTS.includes(v)) return;
@@ -112,7 +117,11 @@ function render() {
   // Saat sorotan atau mode "presentasi saja", strip disembunyikan agar panggung bersih & hemat bandwidth.
   const camOn = (p) => hasCam(p) && mayView(p);
   const recMode = document.body.classList.contains('rec-mode');
-  let list = (!gridMode && (spot || layout === 'focus')) ? [] : allParticipants().filter(mayList);
+  // Layar penuh (tombol layar penuh / F11): strip peserta disembunyikan agar presentasi tampil penuh.
+  // Mode galeri tetap menampilkan peserta karena memang itu isinya.
+  const full = isFullscreen();
+  document.body.classList.toggle('is-fullscreen', full);
+  let list = (!gridMode && (spot || layout === 'focus' || full)) ? [] : allParticipants().filter(mayList);
   if (recMode) list = list.filter(p => p !== room.localParticipant && camOn(p)); // rekaman: hanya kamera yang menyala
   list.sort((a, b) => (b === room.localParticipant) - (a === room.localParticipant) || (camOn(b) - camOn(a))
     || (speaking.has(b.identity) - speaking.has(a.identity)) || (a.name || '').localeCompare(b.name || ''));
@@ -302,6 +311,7 @@ export function initMedia(room) {
   $('#spot-stop').addEventListener('click', () => setSpotlight(null));
   on('meta', spotChanged);
   addEventListener('resize', schedule);
+  document.addEventListener('fullscreenchange', schedule);
   // Lebar panggung berubah saat menu/panel kiri dibuka-tutup → hitung ulang jumlah ubin per halaman
   new ResizeObserver(() => schedule()).observe($('#stage'));
   on('meta', schedule); on('hands', schedule);

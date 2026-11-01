@@ -13,6 +13,7 @@ const lp = () => store.room.localParticipant;
 const micPub = () => lp().getTrackPublication(Track.Source.Microphone);
 const camPub = () => lp().getTrackPublication(Track.Source.Camera);
 const setIcon = (btn, name) => { const svg = btn.querySelector('svg'); svg.replaceWith(icon(name, 22)); };
+const setIconSmall = (btn, name) => { const svg = btn.querySelector('svg'); svg.replaceWith(icon(name, 18)); };
 
 const QUALITY = {
   low: { label: 'Rendah (180p, hemat data)', preset: VideoPresets.h180 },
@@ -455,7 +456,14 @@ export function initControls(room) {
   $('#rec-btn').addEventListener('click', toggleRecording);
   $('#conn-btn').addEventListener('click', connModal);
   // Tombol menu ditangani di panels.js (membuka/menutup menu kiri + panel sekaligus)
-  $('#m-full').addEventListener('click', () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {}));
+  const toggleFull = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen?.().catch(() => {});
+  $('#m-full').addEventListener('click', toggleFull);
+  $('#pres-full').addEventListener('click', toggleFull);
+  document.addEventListener('fullscreenchange', () => {
+    const on = !!document.fullscreenElement;
+    const b = $('#pres-full'); setIconSmall(b, on ? 'minimize' : 'maximize'); b.title = on ? 'Keluar dari layar penuh' : 'Layar penuh (strip peserta disembunyikan)';
+    $('#m-full').lastChild.textContent = on ? 'Keluar layar penuh' : 'Layar penuh';
+  });
   $('#m-settings').addEventListener('click', settingsModal);
   $('#a-settings').addEventListener('click', settingsModal);
   $('#m-info').addEventListener('click', infoModal);

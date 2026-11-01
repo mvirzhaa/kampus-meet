@@ -10,3 +10,6 @@ recordings/
 *.bak
 deploy/*.generated.yaml
 deploy/conf.d/*.caddy
+
+# Kredensial (mis. akun layanan Firebase untuk push notification)
+secrets/

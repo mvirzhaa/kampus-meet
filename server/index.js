@@ -7,6 +7,10 @@ import { registerRoomRoutes, createRoomRecord, uploadsDir, resumeBreakouts } fro
 import { registerEventRoutes } from './events.js';
 import { registerAdminRoutes } from './admin.js';
 import { registerSsoRoutes } from './sso.js';
+import { registerInsightRoutes } from './insights.js';
+import { registerChatbotRoutes } from './chatbot.js';
+import { registerInviteRoutes } from './invites.js';
+import { registerApkRoutes, latestRelease, sendApk } from './apk.js';
 import { limiters } from './security.js';
 
 const api = new Router();
@@ -16,6 +20,10 @@ resumeBreakouts();
 registerEventRoutes(api, { createRoomRecord });
 registerAdminRoutes(api, { uploadsDir });
 registerSsoRoutes(api);
+registerInsightRoutes(api);
+registerChatbotRoutes(api);
+registerInviteRoutes(api);
+registerApkRoutes(api);
 api.get('/api/health', (req, res) => json(res, 200, { ok: true }));
 
 // Halaman (clean URL → file HTML statis)
@@ -51,6 +59,13 @@ const server = http.createServer(async (req, res) => {
         target: { namespace: 'android_app', package_name: config.android.package, sha256_cert_fingerprints: config.android.certSha256 } }]);
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=3600', 'Content-Length': Buffer.byteLength(body) });
       return res.end(req.method === 'HEAD' ? undefined : body);
+    }
+    // Unduhan APK terbaru (halaman depan, banner buka aplikasi, pemberitahuan pembaruan di aplikasi)
+    if (/^\/unduh\/android(\.apk)?\/?$/.test(pathname)) {
+      const rel = latestRelease();
+      if (rel) return sendApk(req, res, rel);
+      if (config.android.downloadUrl) { res.writeHead(302, { Location: config.android.downloadUrl }); return res.end(); }
+      throw new HttpError(404, 'Aplikasi Android belum tersedia untuk diunduh.');
     }
     for (const [re, file] of pages) if (re.test(pathname)) return sendHtml(req, res, file);
     if (serveStatic(req, res, pathname)) return;

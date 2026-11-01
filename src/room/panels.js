@@ -160,6 +160,13 @@ export function setHand(up) {
   send({ t: 'hand', up: !!up });
   emit('hands');
 }
+// Server mengalihkan moderator karena moderator sebelumnya terputus/keluar
+on('srv:mod-handover', (m) => {
+  const who = str(m.name, 60) || 'Peserta';
+  const prev = str(m.left, 60);
+  if (m.identity === store.identity) toast(`${prev ? `Moderator (${prev}) terputus. ` : 'Moderator terputus. '}Anda sekarang moderator agar meeting tetap berjalan.`, 'info', 8000);
+  sysChat(`${who} sekarang menjadi moderator${prev ? ` menggantikan ${prev}` : ''} (moderator sebelumnya terputus).`);
+});
 on('msg:hand', (m, from) => {
   const was = store.hands.has(from);
   if (m.up) { store.hands.set(from, Date.now()); if (!was && isMod()) toast(`✋ ${nameOf(from)} mengangkat tangan`, 'info'); }

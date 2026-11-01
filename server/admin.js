@@ -8,6 +8,7 @@ import { HttpError, json, readJson, readBody } from './http.js';
 import { requireUser, requireCsrf, requireAdmin, isSuperAdmin } from './auth.js';
 import { clean, hashPassword, passwordProblem } from './security.js';
 import { lk } from './livekit.js';
+import { paging, paged } from './paging.js';
 import { removeSponsorFiles } from './events.js';
 
 // ===== Kategori =====
@@ -149,7 +150,12 @@ export function registerAdminRoutes(r, { uploadsDir }) {
   // ---------- Kategori ----------
   r.get('/api/admin/categories', (req, res) => {
     requireAdmin(req);
-    json(res, 200, { categories: q('SELECT * FROM categories ORDER BY sort, name').all().map(categoryView) });
+    const p = paging(req, { per: 20 });
+    const where = p.term ? 'WHERE name LIKE ?' : '';
+    const args = p.term ? [like(p.term)] : [];
+    const total = q(`SELECT COUNT(*) AS n FROM categories ${where}`).get(...args).n;
+    const rows = q(`SELECT * FROM categories ${where} ORDER BY sort, name LIMIT ? OFFSET ?`).all(...args, p.per, p.offset).map(categoryView);
+    json(res, 200, { categories: rows, ...paged(rows, total, p) });
   });
 
   r.post('/api/admin/categories', async (req, res) => {
@@ -201,11 +207,16 @@ export function registerAdminRoutes(r, { uploadsDir }) {
   // ---------- Pengguna ----------
   r.get('/api/admin/users', (req, res) => {
     requireAdmin(req);
-    const term = clean(new URL(req.url, 'http://x').searchParams.get('q'), 80);
-    const rows = term
-      ? q('SELECT * FROM users WHERE name LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT 500').all(like(term), like(term))
-      : q('SELECT * FROM users ORDER BY created_at DESC LIMIT 500').all();
-    json(res, 200, { users: rows.map(userView), total: q('SELECT COUNT(*) AS n FROM users').get().n });
+    const p = paging(req);
+    // Filter tambahan: role=admin|user, status=active|disabled
+    const conds = []; const args = [];
+    if (p.term) { conds.push('(name LIKE ? OR email LIKE ? OR institutional_role LIKE ?)'); args.push(like(p.term), like(p.term), like(p.term)); }
+    const role = p.sp.get('role'); if (role === 'admin' || role === 'user') { conds.push('role = ?'); args.push(role); }
+    const st = p.sp.get('status'); if (st === 'active' || st === 'disabled') { conds.push('status = ?'); args.push(st); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    const total = q(`SELECT COUNT(*) AS n FROM users ${where}`).get(...args).n;
+    const rows = q(`SELECT * FROM users ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...args, p.per, p.offset).map(userView);
+    json(res, 200, { users: rows, ...paged(rows, total, p) });
   });
 
   /** Ambil pengguna target sekaligus tolak aksi yang bisa mengunci admin dari sistemnya sendiri. */
@@ -261,27 +272,25 @@ export function registerAdminRoutes(r, { uploadsDir }) {
   // ---------- Semua meeting ----------
   r.get('/api/admin/rooms', async (req, res) => {
     requireAdmin(req);
-    const term = clean(new URL(req.url, 'http://x').searchParams.get('q'), 80);
-    const sql = `SELECT r.*, u.name AS owner_name, u.email AS owner_email,
+    const p = paging(req);
+    const from = 'FROM rooms r JOIN users u ON u.id = r.owner_id';
+    const where = p.term ? 'WHERE r.name LIKE ? OR r.id LIKE ? OR u.name LIKE ? OR u.email LIKE ?' : '';
+    const args = p.term ? [like(p.term), like(p.term), like(p.term), like(p.term)] : [];
+    const total = q(`SELECT COUNT(*) AS n ${from} ${where}`).get(...args).n;
+    const rows = q(`SELECT r.*, u.name AS owner_name, u.email AS owner_email,
                         (SELECT COUNT(*) FROM events e WHERE e.room_id = r.id) AS event_count
-                 FROM rooms r JOIN users u ON u.id = r.owner_id`;
-    const rows = term
-      ? q(`${sql} WHERE r.name LIKE ? OR r.id LIKE ? OR u.name LIKE ? OR u.email LIKE ?
-           ORDER BY COALESCE(r.last_used_at, r.created_at) DESC LIMIT 300`).all(like(term), like(term), like(term), like(term))
-      : q(`${sql} ORDER BY COALESCE(r.last_used_at, r.created_at) DESC LIMIT 300`).all();
+                 ${from} ${where} ORDER BY COALESCE(r.last_used_at, r.created_at) DESC LIMIT ? OFFSET ?`).all(...args, p.per, p.offset);
     const live = {};
     if (rows.length) {
       try { for (const lr of (await lk.listRooms(rows.map(x => x.id))).rooms || []) live[lr.name] = lr.num_participants ?? lr.numParticipants ?? 0; }
       catch { /* LiveKit tidak tersedia: tampilkan tanpa status live */ }
     }
-    json(res, 200, {
-      total: q('SELECT COUNT(*) AS n FROM rooms').get().n,
-      rooms: rows.map(x => ({
-        id: x.id, name: x.name, owner: x.owner_name, ownerEmail: x.owner_email,
-        createdAt: x.created_at, lastUsedAt: x.last_used_at, scheduledAt: x.scheduled_at,
-        maxParticipants: x.max_participants, hasEvent: !!x.event_count, live: live[x.id] ?? null,
-      })),
-    });
+    const out = rows.map(x => ({
+      id: x.id, name: x.name, owner: x.owner_name, ownerEmail: x.owner_email,
+      createdAt: x.created_at, lastUsedAt: x.last_used_at, scheduledAt: x.scheduled_at,
+      maxParticipants: x.max_participants, hasEvent: !!x.event_count, live: live[x.id] ?? null,
+    }));
+    json(res, 200, { rooms: out, ...paged(out, total, p) });
   });
 
   // Penghapusan room milik orang lain sengaja dipisah dari /api/rooms/:code agar jelas di log
@@ -300,23 +309,28 @@ export function registerAdminRoutes(r, { uploadsDir }) {
   // ---------- Semua event ----------
   r.get('/api/admin/events', (req, res) => {
     requireAdmin(req);
-    const term = clean(new URL(req.url, 'http://x').searchParams.get('q'), 80);
-    const sql = `SELECT e.*, u.name AS owner_name, u.email AS owner_email,
-                        (SELECT COUNT(*) FROM event_regs g WHERE g.event_id = e.id) AS regs
-                 FROM events e JOIN users u ON u.id = e.owner_id`;
-    const rows = term
-      ? q(`${sql} WHERE e.title LIKE ? OR e.category LIKE ? OR e.speaker LIKE ? OR u.name LIKE ? OR u.email LIKE ?
-           ORDER BY e.starts_at DESC LIMIT 300`).all(like(term), like(term), like(term), like(term), like(term))
-      : q(`${sql} ORDER BY e.starts_at DESC LIMIT 300`).all();
-    json(res, 200, {
-      total: q('SELECT COUNT(*) AS n FROM events').get().n,
-      events: rows.map(e => ({
+    const p = paging(req);
+    const from = 'FROM events e JOIN users u ON u.id = e.owner_id';
+    const conds = []; const args = [];
+    if (p.term) { conds.push('(e.title LIKE ? OR e.category LIKE ? OR e.speaker LIKE ? OR u.name LIKE ? OR u.email LIKE ?)'); args.push(...Array(5).fill(like(p.term))); }
+    // when=upcoming|live|past
+    const t = now(); const when = p.sp.get('when');
+    if (when === 'upcoming') { conds.push('e.starts_at > ?'); args.push(t); }
+    else if (when === 'live') { conds.push('e.starts_at <= ? AND e.ends_at >= ?'); args.push(t, t); }
+    else if (when === 'past') { conds.push('e.ends_at < ?'); args.push(t); }
+    const where = conds.length ? 'WHERE ' + conds.join(' AND ') : '';
+    const total = q(`SELECT COUNT(*) AS n ${from} ${where}`).get(...args).n;
+    const rows = q(`SELECT e.*, u.name AS owner_name, u.email AS owner_email,
+                        (SELECT COUNT(*) FROM event_regs g WHERE g.event_id = e.id) AS regs,
+                        (SELECT COUNT(*) FROM event_regs g WHERE g.event_id = e.id AND g.cert_code IS NOT NULL) AS certs
+                 ${from} ${where} ORDER BY e.starts_at DESC LIMIT ? OFFSET ?`).all(...args, p.per, p.offset);
+    const events = rows.map(e => ({
         id: e.id, slug: e.slug, title: e.title, category: e.category, speaker: e.speaker,
         startsAt: e.starts_at, endsAt: e.ends_at, quota: e.quota, published: !!e.published,
         certificate: !!e.certificate, registered: e.regs, owner: e.owner_name, ownerEmail: e.owner_email,
-        roomId: e.room_id,
-      })),
-    });
+        roomId: e.room_id, certs: e.certs,
+      }));
+    json(res, 200, { events, ...paged(events, total, p) });
   });
 
   r.delete('/api/admin/events/:id', (req, res, { id }) => {
@@ -338,6 +352,8 @@ export function registerAdminRoutes(r, { uploadsDir }) {
       rooms: q('SELECT COUNT(*) AS n FROM rooms').get().n,
       events: q('SELECT COUNT(*) AS n FROM events').get().n,
       categories: q('SELECT COUNT(*) AS n FROM categories WHERE active = 1').get().n,
+      certificates: q('SELECT COUNT(*) AS n FROM event_regs WHERE cert_code IS NOT NULL').get().n,
+      feedbackUnread: q('SELECT COUNT(*) AS n FROM feedback WHERE read_at IS NULL').get().n,
       superAdmin: config.adminEmail || null,
     });
   });
