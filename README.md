@@ -78,9 +78,8 @@ Itu memperkecil APK secara signifikan, tetapi **HP Android 32-bit tidak bisa mem
 Android menampilkannya sebagai "aplikasi tidak kompatibel" tanpa penjelasan. Bila ada laporan
 semacam itu, tambahkan kembali `armeabi-v7a` pada `-PreactNativeArchitectures`.
 
-> **Aplikasi mobile belum mendukung SSO E-Portal.** Ia hanya memakai form email dan
-> password. Civitas yang akunnya hanya ada di E-Portal (tanpa password lokal) belum bisa
-> masuk lewat aplikasi; mereka perlu memakai versi web.
+> **Aplikasi mobile kini mendukung SSO E-Portal** lewat tab khusus di layar masuk.
+> Lihat "Login SSO dari aplikasi Android" di bawah.
 
 ## Notifikasi azan (web)
 
@@ -291,6 +290,41 @@ Catatan pemeliharaan: ini memintas DNS, jadi bila IP lokal E-Portal berubah, SSO
 dengan gejala `sso=down` yang sama. Perbaikan yang lebih benar adalah meminta tim IT membuka
 jalur server-ke-server atau menyediakan DNS internal; `SSO_HOST_MAP` adalah penambal
 sementara yang sengaja dicatat di sini agar tidak jadi misteri di kemudian hari.
+
+#### Login SSO dari aplikasi Android
+
+Aplikasi mobile memakai jalurnya sendiri karena alur web berakhir sebagai cookie, sedangkan
+aplikasi tidak punya cookie jar yang bisa diandalkan. Layar masuk menampilkan dua tab:
+**Akun UIKA Meet** dan **E-Portal**.
+
+Tiga langkah, semuanya mengikuti kontrak E-Portal yang sudah ada:
+
+| | |
+| --- | --- |
+| 1 | Aplikasi `POST {SSO_BASE_URL}/api/auth/login` &rarr; JWT E-Portal |
+| 2 | `GET {SSO_BASE_URL}/api/my-modules/{SSO_APP_MODULE_ID}/roles` &rarr; jabatan pengguna |
+| 3 | `GET {SSO_BASE_URL}/api/sso/redirect?target_url=…` &rarr; token ber-scope (umur 2 menit) |
+
+Token ber-scope itu dikirim ke `POST /api/sso/app-exchange` (wajib menyertakan header
+`X-Client: uika-meet-app…`), yang **mengintrospeksinya kembali ke E-Portal** persis seperti
+alur web lalu membuat sesi aplikasi. Tidak ada token E-Portal yang pernah didekode secara
+lokal.
+
+Bila pengguna punya lebih dari satu jabatan, aplikasi menampilkan pemilihnya; bila hanya
+satu, langkah itu dilewati.
+
+Alamat E-Portal tidak dipatok di kode aplikasi &mdash; server mengirimkannya lewat
+`/api/me` sebagai `app.sso = { baseUrl, moduleId }`, dan bernilai `null` ketika SSO mati.
+
+> **Catatan keamanan: password E-Portal melewati kode aplikasi.** Ini konsekuensi yang
+> disadari dari memilih form native ketimbang membuka browser. Yang dijaga: password
+> dikirim **langsung dari aplikasi ke E-Portal**, tidak pernah melewati server UIKA Meet,
+> dan tidak pernah disimpan di perangkat &mdash; JWT E-Portal pun hanya hidup di memori
+> selama proses login. Yang tersimpan di penyimpanan aman hanyalah token sesi UIKA Meet.
+>
+> Bila suatu saat ingin password tidak lagi melewati aplikasi, alurnya diganti menjadi
+> membuka halaman login E-Portal di browser dalam-aplikasi lalu mengembalikan sesi lewat
+> App Link &mdash; infrastrukturnya (`assetlinks.json`) sudah tersedia.
 
 #### Siapa boleh membuat meeting & event
 

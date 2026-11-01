@@ -12,9 +12,9 @@
 // token untuk pengguna mana pun di SELURUH aplikasi SSO. Karena itu selalu introspect.
 import { config } from './config.js';
 import { q, now } from './db.js';
-import { HttpError, json } from './http.js';
-import { createSession } from './auth.js';
-import { clean, isEmail } from './security.js';
+import { HttpError, json, readJson, clientIp } from './http.js';
+import { createSession, isAppClient } from './auth.js';
+import { clean, isEmail, limiters } from './security.js';
 
 const S = config.sso;
 
@@ -130,6 +130,32 @@ export function registerSsoRoutes(r) {
   // Dipakai halaman login untuk tahu apakah SSO aktif (menampilkan petunjuk, bukan tombol:
   // alur ini hanya bisa dimulai dari dasbor eportal).
   r.get('/api/sso/status', (req, res) => json(res, 200, { enabled: S.enabled }));
+
+  // ---- Pertukaran untuk aplikasi mobile ----
+  // Alur web dimulai dari dasbor eportal dan berakhir di cookie; aplikasi tidak punya
+  // cookie jar yang bisa diandalkan, jadi ia menempuh jalur sendiri:
+  //   1. aplikasi login LANGSUNG ke eportal (password tidak pernah melewati server ini)
+  //   2. aplikasi memanggil {eportal}/api/sso/redirect dan memperoleh token ber-scope
+  //   3. token itu ditukar di sini menjadi sesi UIKA Meet
+  // Tokennya tetap diintrospeksi ke eportal, persis seperti alur web - tidak pernah
+  // didekode secara lokal, karena rahasia HS256-nya milik eportal.
+  r.post('/api/sso/app-exchange', async (req, res) => {
+    if (!S.enabled) throw ssoError(503, 'off', 'Masuk lewat E-Portal belum diaktifkan di server ini.');
+    if (!isAppClient(req)) throw new HttpError(400, 'Khusus aplikasi mobile.');
+    // Menahan upaya membanjiri endpoint ini - tiap panggilan meneruskan satu permintaan ke eportal
+    const wait = limiters.login.take(clientIp(req));
+    if (wait) throw new HttpError(429, `Terlalu banyak percobaan. Coba lagi dalam ${wait} detik.`, { retryAfter: wait });
+
+    const b = await readJson(req);
+    const token = clean(b.token, 4000);
+    if (!token) throw ssoError(400, 'invalid', 'Token dari E-Portal tidak dikirim.');
+
+    const data = await introspect(token);
+    const userId = syncUser(data.user);
+    syncAdminRole(userId, clean(data.user.institutional_role, 32).toLowerCase());
+    const out = await createSession(req, res, userId);
+    json(res, 200, { ok: true, ...out });
+  });
 
   // Tujuan redirect dari eportal. GET karena dipanggil lewat navigasi browser.
   //

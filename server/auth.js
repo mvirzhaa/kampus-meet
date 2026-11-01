@@ -118,7 +118,9 @@ export function registerAuthRoutes(r) {
       csrf: s?.csrf || null,
       app: {
         name: config.appName, campus: config.campusName, allowRegistration: config.allowRegistration, domains: config.allowedEmailDomains,
-        sso: config.sso.enabled,
+        // Aplikasi mobile butuh alamat E-Portal untuk login SSO-nya sendiri; alamat ini
+        // publik (dipakai juga oleh situs eportal), jadi aman dikirim ke klien.
+        sso: config.sso.enabled ? { baseUrl: config.sso.baseUrl, moduleId: config.sso.moduleId } : null,
         android: config.android.openApp ? { package: config.android.package, downloadUrl: androidDownloadUrl() } : null,
       },
     });

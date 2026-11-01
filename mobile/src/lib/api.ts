@@ -65,7 +65,7 @@ export async function api<T = any>(method: string, path: string, body?: unknown,
 export type Me = {
   user: { id: number; email: string; name: string; role: string } | null;
   csrf: string | null;
-  app: { name: string; campus: string; allowRegistration: boolean };
+  app: { name: string; campus: string; allowRegistration: boolean; sso?: { baseUrl: string; moduleId: string } | null };
 };
 export type RoomInfo = {
   id: string; name: string; welcome?: string; hasPassword: boolean; password?: string | null;

@@ -16,6 +16,7 @@ type Ctx = {
   ready: boolean;
   refresh: () => Promise<Me | null>;
   login: (email: string, password: string) => Promise<void>;
+  loginSso: (scopedToken: string) => Promise<void>;
   logout: () => Promise<void>;
 };
 const AuthCtx = createContext<Ctx>(null as unknown as Ctx);
@@ -81,6 +82,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await refresh();
   }, [refresh]);
 
+  // Login lewat SSO E-Portal: aplikasi sudah memperoleh token ber-scope dari E-Portal
+  // (lihat lib/eportal.ts); di sini token itu ditukar menjadi sesi UIKA Meet.
+  const loginSso = useCallback(async (scopedToken: string) => {
+    const r = await api<{ csrf: string; token?: string }>('POST', '/api/sso/app-exchange', { token: scopedToken });
+    if (r.token) await setSessionToken(r.token);
+    setCsrf(r.csrf);
+    pushed.current = 0;
+    await refresh();
+  }, [refresh]);
+
   const logout = useCallback(async () => {
     await unregisterPush().catch(() => {});
     try { await api('POST', '/api/auth/logout'); } catch { /* abaikan */ }
@@ -92,6 +103,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!m) setMe((prev) => (prev ? { ...prev, user: null, csrf: null } : prev));
   }, [refresh]);
 
-  return <AuthCtx.Provider value={{ me, ready, refresh, login, logout }}>{children}</AuthCtx.Provider>;
+  return <AuthCtx.Provider value={{ me, ready, refresh, login, loginSso, logout }}>{children}</AuthCtx.Provider>;
 }
 export const useAuth = () => useContext(AuthCtx);
