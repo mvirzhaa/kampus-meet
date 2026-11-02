@@ -9,7 +9,10 @@
   <div class="cert-tools">
     <a href="/dashboard#sertifikat" class="btn btn-ghost btn-sm"><i data-i="chevron-left" data-s="16"></i>Kembali</a>
     <span id="verified" class="pill green" hidden><i data-i="circle-check" data-s="14"></i>Sertifikat terverifikasi</span>
-    <button class="btn btn-primary btn-sm" id="print"><i data-i="download" data-s="16"></i>Unduh / Cetak PDF</button>
+    <div class="cert-acts">
+      <button class="btn btn-ghost btn-sm" id="print" type="button"><i data-i="file" data-s="16"></i>Cetak</button>
+      <button class="btn btn-primary btn-sm" id="pdf" type="button" disabled><i data-i="download" data-s="16"></i>Unduh PDF</button>
+    </div>
   </div>
   <div class="cert" id="cert"><div class="cert-inner"><p>Memuat sertifikat…</p></div></div>
 <!--JS:certificate-->

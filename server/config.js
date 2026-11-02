@@ -78,6 +78,8 @@ export const config = {
   // Chatbot halaman depan. Tanpa kunci: menjawab dari basis pengetahuan (FAQ) dwibahasa di server.
   // Dengan CHATBOT_AI_KEY (Claude API): pertanyaan dijawab AI memakai basis pengetahuan yang sama.
   chatbot: {
+    // Nama persona asisten (web & aplikasi)
+    name: env('CHATBOT_NAME', 'Fitri'),
     apiKey: env('CHATBOT_AI_KEY', ''),
     model: env('CHATBOT_AI_MODEL', 'claude-haiku-5-5'),
     url: env('CHATBOT_AI_URL', 'https://api.anthropic.com/v1/messages'),

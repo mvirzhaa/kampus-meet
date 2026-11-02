@@ -4,6 +4,7 @@ import { roomFormModal, emptyState } from '../shared/ui.js';
 import { toXlsx, attendancePdf, transcriptPdf, transcriptDocx, saveBlob } from '../shared/export.js';
 import { eventForm as eventFormBase } from '../shared/eventform.js';
 import { inviteManager } from '../shared/invites.js';
+import { speakerCertManager } from '../shared/speakers.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -281,6 +282,7 @@ function eventItem(e, own) {
       h('a', { class: 'btn btn-primary btn-sm', href: `/event/${e.slug}` }, 'Buka'),
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Ubah event', 'aria-label': 'Ubah event', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Undang peserta (email & notifikasi aplikasi)', 'aria-label': 'Undang peserta', onclick: () => inviteManager(e, { onClose: (changed) => { if (changed) loadEvents(); } }) }, icon('user-plus', 16), 'Undang') : null,
+      own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Sertifikat narasumber / pemateri (cetak)', 'aria-label': 'Sertifikat narasumber', onclick: () => speakerCertManager(e) }, icon('award', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Bagikan link & password', onclick: () => eventInvite(e) }, icon('link', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Peserta', onclick: () => participants(e) }, icon('users', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus', onclick: async () => {
@@ -371,11 +373,14 @@ async function participants(e) {
 // ---------- Sertifikat ----------
 async function loadCerts() {
   try {
-    const { registered } = await api('GET', '/api/my/events');
-    const certs = registered.filter(e => e.certCode);
-    $('#certs').replaceChildren(...(certs.length ? certs.map(e => h('div', { class: 'room-item' },
-      h('div', {}, h('h3', { text: e.title }), h('div', { class: 'meta' }, h('span', {}, icon('calendar', 15), fmtDate(e.startsAt)), h('span', {}, icon('award', 15), e.certCode))),
-      h('div', { class: 'acts' }, h('a', { class: 'btn btn-violet btn-sm', href: `/sertifikat/${e.certCode}` }, icon('download', 16), 'Lihat / Unduh')))) : [emptyState('Belum ada sertifikat.', 'award')]));
+    const { certificates: certs } = await api('GET', '/api/my/certificates');
+    $('#certs').replaceChildren(...(certs.length ? certs.map(c => h('div', { class: 'room-item' },
+      h('div', {}, h('h3', {}, c.title, h('span', { class: `pill ${c.kind === 'speaker' ? 'invite' : 'green'}`, text: c.role })),
+        h('div', { class: 'meta' }, h('span', {}, icon('calendar', 15), fmtDate(c.startsAt)), h('span', {}, icon('award', 15), c.code),
+          c.attendedMin != null ? h('span', {}, icon('clock', 15), `Hadir ${c.attendedMin} mnt`) : null)),
+      h('div', { class: 'acts' },
+        h('a', { class: 'btn btn-ghost btn-sm', href: `/sertifikat/${c.code}` }, icon('eye', 16), 'Lihat'),
+        h('a', { class: 'btn btn-violet btn-sm', href: `/sertifikat/${c.code}?unduh=1` }, icon('download', 16), 'Unduh PDF')))) : [emptyState('Belum ada sertifikat.', 'award')]));
   } catch (e) { toast(e.message, 'error'); }
 }
 

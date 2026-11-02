@@ -258,6 +258,20 @@ CREATE TABLE IF NOT EXISTS app_releases (
   published_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_releases_status ON app_releases(status, version_code);
+-- Sertifikat narasumber / pemateri / moderator event (diterbitkan penyelenggara, tidak bergantung kehadiran)
+CREATE TABLE IF NOT EXISTS speaker_certs (
+  id INTEGER PRIMARY KEY,
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'Narasumber',
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,   -- opsional: tampil di "Sertifikat saya" pengguna ini
+  cert_code TEXT NOT NULL UNIQUE,
+  sort INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_speaker_event ON speaker_certs(event_id, sort);
+CREATE INDEX IF NOT EXISTS idx_speaker_user ON speaker_certs(user_id);
 `);
 
 // Migrasi kolom (aman dijalankan berulang)
@@ -292,6 +306,8 @@ for (const sql of [
   'ALTER TABLE events ADD COLUMN reminded_at INTEGER',
   // Lama sesi (hari) per sesi: sesi aplikasi mobile jauh lebih panjang dari sesi browser
   'ALTER TABLE sessions ADD COLUMN days INTEGER',
+  // Kalimat sertifikat narasumber yang bisa diubah penyelenggara (kosong = bawaan)
+  "ALTER TABLE events ADD COLUMN speaker_text TEXT NOT NULL DEFAULT ''",
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
 

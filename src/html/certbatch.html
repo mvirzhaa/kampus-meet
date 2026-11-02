@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cetak Sertifikat — APP</title><link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml"><link rel="icon" href="/favicon.ico?v=3" sizes="48x48"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=3"><link rel="manifest" href="/site.webmanifest?v=3"><meta name="theme-color" content="#022c22">
+<meta name="robots" content="noindex">
+<!--CSS:site-->
+</head>
+<body class="cert-page cert-batch">
+  <div class="cert-tools batch-tools">
+    <a href="/dashboard#event" class="btn btn-ghost btn-sm" id="back"><i data-i="chevron-left" data-s="16"></i>Kembali</a>
+    <div class="batch-title"><b id="b-title">Cetak sertifikat</b><small id="b-sub"></small></div>
+    <div class="seg" role="tablist" aria-label="Jenis sertifikat">
+      <button type="button" role="tab" data-kind="speaker">Narasumber</button>
+      <button type="button" role="tab" data-kind="participant">Peserta</button>
+    </div>
+    <div class="cert-acts">
+      <button class="btn btn-ghost btn-sm" id="print" type="button" disabled><i data-i="file" data-s="16"></i>Cetak semua</button>
+      <button class="btn btn-primary btn-sm" id="pdf" type="button" disabled><i data-i="download" data-s="16"></i>Unduh PDF</button>
+    </div>
+  </div>
+  <div id="certs"><div class="cert"><div class="cert-inner"><p>Memuat sertifikat…</p></div></div></div>
+<!--JS:certbatch-->
+</body>
+</html>

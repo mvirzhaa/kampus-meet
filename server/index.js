@@ -11,6 +11,7 @@ import { registerInsightRoutes } from './insights.js';
 import { registerChatbotRoutes } from './chatbot.js';
 import { registerInviteRoutes } from './invites.js';
 import { registerApkRoutes, latestRelease, sendApk } from './apk.js';
+import { registerSpeakerRoutes } from './speakers.js';
 import { limiters } from './security.js';
 
 const api = new Router();
@@ -24,6 +25,7 @@ registerInsightRoutes(api);
 registerChatbotRoutes(api);
 registerInviteRoutes(api);
 registerApkRoutes(api);
+registerSpeakerRoutes(api);
 api.get('/api/health', (req, res) => json(res, 200, { ok: true }));
 
 // Halaman (clean URL → file HTML statis)
@@ -31,7 +33,7 @@ const pages = [
   [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'], [/^\/admin\/?$/, 'admin.html'],
   [/^\/j\/[a-z-]{6,20}\/?$/, 'join.html'], [/^\/r\/[a-z-]{6,20}\/?$/, 'room.html'], [/^\/rec\/[a-z-]{6,20}\/?$/, 'room.html'],
   [/^\/event\/?$/, 'events.html'], [/^\/event\/[\w-]{3,80}\/?$/, 'event.html'],
-  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'], [/^\/m\/pres\/?$/, 'mpres.html'],
+  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'], [/^\/m\/pres\/?$/, 'mpres.html'], [/^\/cetak-sertifikat\/\d{1,9}\/?$/, 'certbatch.html'],
 ];
 
 const server = http.createServer(async (req, res) => {

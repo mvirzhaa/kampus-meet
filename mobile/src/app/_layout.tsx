@@ -66,6 +66,8 @@ function Root() {
       <Stack.Screen name="room/[code]" options={{ title: 'Detail Meeting' }} />
       <Stack.Screen name="event/[slug]" options={{ title: 'Detail Event' }} />
       <Stack.Screen name="event/invites" options={{ title: 'Undangan Peserta' }} />
+      <Stack.Screen name="fitri" options={{ title: 'Fitri' }} />
+      <Stack.Screen name="sertifikat" options={{ title: 'Sertifikat Saya' }} />
       <Stack.Screen name="prayer" options={{ title: 'Jadwal Salat & Azan', presentation: 'modal' }} />
       <Stack.Screen name="meeting/[code]" options={{ headerShown: false, gestureEnabled: false, animation: 'fade', contentStyle: { backgroundColor: C.call } }} />
       <Stack.Screen name="j/[code]" options={{ headerShown: false }} />

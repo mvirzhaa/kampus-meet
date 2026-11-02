@@ -3,7 +3,7 @@
     "name": "UIKA Meet",
     "slug": "uika-meet",
     "scheme": "uikameet",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,7 +19,7 @@
     },
     "android": {
       "package": "id.ac.uikabogor.meet",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "backgroundColor": "#047857",
         "foregroundImage": "./assets/android-icon-foreground.png",

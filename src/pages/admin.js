@@ -4,6 +4,7 @@ import { initSite, $, $$, h, icon, api, toast, modal, confirmDialog, fmtDate, fm
 import { emptyState } from '../shared/ui.js';
 import { eventForm } from '../shared/eventform.js';
 import { inviteManager } from '../shared/invites.js';
+import { speakerCertManager } from '../shared/speakers.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -478,6 +479,7 @@ function eventItem(e) {
     h('div', { class: 'acts' },
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Ubah event', 'aria-label': `Ubah event ${e.title}`, onclick: () => editEvent(e) }, icon('pencil', 16)),
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Undangan peserta (email & notifikasi aplikasi)', 'aria-label': `Undangan event ${e.title}`, onclick: () => inviteManager(e) }, icon('user-plus', 16)),
+      h('button', { class: 'btn btn-ghost btn-sm', title: 'Sertifikat narasumber / pemateri (cetak)', 'aria-label': `Sertifikat narasumber ${e.title}`, onclick: () => speakerCertManager(e) }, icon('award', 16)),
       e.registered ? h('a', { class: 'btn btn-ghost btn-sm', title: 'Lihat peserta & sertifikat', 'aria-label': 'Lihat peserta & sertifikat', href: `#sertifikat?event=${e.id}` }, icon('award', 16)) : null,
       h('a', { class: 'btn btn-ghost btn-sm', title: 'Lihat halaman event', href: `/event/${e.slug}` }, icon('eye', 16)),
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus event', onclick: () => removeEvent(e) }, icon('trash', 16))));

@@ -1,4 +1,5 @@
-// Widget chatbot "Asisten UIKA Meet" di halaman depan (tamu maupun pengguna login).
+// Widget "Fitri" — asisten virtual UIKA Meet di halaman depan (tamu maupun pengguna login).
+// Pengguna login bisa menanyakan "undangan saya" untuk mendapat daftar undangan beserta tautan gabungnya.
 // • Membuka percakapan dengan "Assalamualaikum" dan menyapa pengguna "Kakak".
 // • Menjawab dalam Bahasa Indonesia atau English (mengikuti bahasa pertanyaan).
 // • Di akhir percakapan (ucapan terima kasih/penutup, tombol Selesai, atau saat menutup widget)
@@ -8,9 +9,9 @@ import { h, icon, api, getMe } from './common.js';
 const KEY = 'km:chatbot';
 const T = {
   id: {
-    title: 'Asisten UIKA Meet', sub: 'Online · Indonesia / English', placeholder: 'Tulis pertanyaan Kakak…', send: 'Kirim',
-    end: 'Selesai', close: 'Tutup', launcher: 'Tanya Asisten',
-    rateTitle: 'Bagaimana pengalaman Kakak dengan asisten ini?', rateNote: 'Masukan untuk kami (opsional)', ratePh: 'Apa yang bisa kami perbaiki?',
+    title: 'Fitri', sub: 'Asisten UIKA Meet · Online', placeholder: 'Tulis pertanyaan Kakak…', send: 'Kirim',
+    end: 'Selesai', close: 'Tutup', launcher: 'Tanya Fitri',
+    rateTitle: 'Bagaimana pengalaman Kakak ngobrol dengan Fitri?', rateNote: 'Masukan untuk kami (opsional)', ratePh: 'Apa yang bisa kami perbaiki?',
     rateSend: 'Kirim penilaian', rateSkip: 'Lewati', rateNeed: 'Pilih bintang 1–5 dulu ya, Kak.',
     thanks: 'Terima kasih atas penilaian dan masukannya, Kak! 🙏 Semoga membantu. Wassalamualaikum.',
     skipped: 'Baik, Kak. Kalau ada pertanyaan lagi, saya siap membantu. Wassalamualaikum.',
@@ -18,9 +19,9 @@ const T = {
     star: (n) => `${n} bintang`, labels: ['Sangat buruk', 'Kurang', 'Cukup', 'Baik', 'Sangat baik'],
   },
   en: {
-    title: 'UIKA Meet Assistant', sub: 'Online · Indonesian / English', placeholder: 'Type your question, Kakak…', send: 'Send',
-    end: 'Finish', close: 'Close', launcher: 'Ask Assistant',
-    rateTitle: 'How was your experience with this assistant?', rateNote: 'Suggestions for us (optional)', ratePh: 'What could we improve?',
+    title: 'Fitri', sub: 'UIKA Meet Assistant · Online', placeholder: 'Type your question, Kakak…', send: 'Send',
+    end: 'Finish', close: 'Close', launcher: 'Ask Fitri',
+    rateTitle: 'How was your chat with Fitri?', rateNote: 'Suggestions for us (optional)', ratePh: 'What could we improve?',
     rateSend: 'Send rating', rateSkip: 'Skip', rateNeed: 'Please choose 1–5 stars first, Kakak.',
     thanks: 'Thank you for your rating and feedback, Kakak! 🙏 Have a great day. Wassalamualaikum.',
     skipped: "Alright, Kakak. If you have more questions, I'm here to help. Wassalamualaikum.",
@@ -28,7 +29,7 @@ const T = {
     star: (n) => `${n} star${n > 1 ? 's' : ''}`, labels: ['Very poor', 'Poor', 'Okay', 'Good', 'Very good'],
   },
 };
-const GREETING = (name) => `Assalamualaikum, Kak${name ? ` ${name}` : ''}! 👋 Saya Asisten UIKA Meet. Ada yang bisa saya bantu seputar meeting, event, sertifikat, atau aplikasinya?\n\n(You can also ask me in English.)`;
+const GREETING = (name) => `Assalamualaikum, Kak${name ? ` ${name}` : ''}! 👋 Saya Fitri, asisten virtual UIKA Meet. Ada yang bisa saya bantu seputar meeting, event, sertifikat, atau aplikasinya?${name ? '\n\nKetik "undangan saya" untuk melihat undangan & tautan meeting Kakak.' : ''}\n\n(You can also ask me in English.)`;
 
 const load = () => { try { return JSON.parse(sessionStorage.getItem(KEY) || 'null'); } catch { return null; } };
 const save = (st) => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch { /* abaikan */ } };
@@ -50,11 +51,11 @@ export function initChatbot() {
   const title = h('b'); const sub = h('small');
   const panel = h('section', { class: 'kb-panel', id: 'kb-panel', role: 'dialog', 'aria-modal': 'false', 'aria-labelledby': 'kb-title', hidden: true },
     h('header', { class: 'kb-head' },
-      h('span', { class: 'kb-avatar' }, h('img', { src: '/img/uika-meet-mark-white.svg', width: 22, height: 22, alt: '' })),
+      h('span', { class: 'kb-avatar fitri' }, h('img', { src: '/img/fitri.svg', width: 40, height: 40, alt: '' })),
       h('div', { class: 'kb-ttl', id: 'kb-title' }, title, sub), endBtn, closeBtn),
     log, form);
   const launch = h('button', { class: 'kb-launch', id: 'kb-launch', type: 'button', 'aria-controls': 'kb-panel', 'aria-expanded': 'false' },
-    icon('message-circle', 22), h('span'));
+    h('img', { class: 'kb-launch-av', src: '/img/fitri.svg', width: 34, height: 34, alt: '' }), h('span'));
   document.body.append(panel, launch);
 
   function labels() {
@@ -66,8 +67,20 @@ export function initChatbot() {
   }
 
   // ---------- Pesan ----------
+  /** Teks biasa + tautan http(s) yang bisa diklik (tanpa HTML dari server). */
+  function rich(t) {
+    const out = []; let last = 0;
+    for (const mm of String(t).matchAll(/https?:\/\/[^\s)]+/g)) {
+      if (mm.index > last) out.push(t.slice(last, mm.index));
+      const url = mm[0].replace(/[.,]+$/, '');
+      out.push(h('a', { href: url, rel: 'noopener', target: url.startsWith(location.origin) ? '_self' : '_blank', text: url.replace(/^https?:\/\//, '') }));
+      last = mm.index + url.length;
+    }
+    if (last < t.length) out.push(t.slice(last));
+    return out;
+  }
   function bubble(m) {
-    const el = h('div', { class: `kb-msg ${m.r === 'u' ? 'u' : 'b'}` }, h('div', { class: 'kb-text', text: m.t }));
+    const el = h('div', { class: `kb-msg ${m.r === 'u' ? 'u' : 'b'}` }, h('div', { class: 'kb-text' }, ...(m.r === 'u' ? [m.t] : rich(m.t))));
     if (m.links?.length) el.append(h('div', { class: 'kb-links' }, m.links.map(l => h('a', { href: l.href, class: 'kb-link' }, l.label, icon('chevron-right', 14)))));
     return el;
   }
@@ -85,7 +98,7 @@ export function initChatbot() {
   function push(m) { st.msgs.push(m); st.msgs = st.msgs.slice(-60); save(st); }
   function start() {
     if (st.msgs.length) return;
-    push({ r: 'b', t: GREETING(first), suggestions: ['Cara bergabung ke meeting', 'Cara membuat meeting', 'Sertifikat event', 'Event mendatang', 'How do I join a meeting?'] });
+    push({ r: 'b', t: GREETING(first), suggestions: [...(me?.user ? ['Undangan saya'] : []), 'Cara bergabung ke meeting', 'Cara membuat meeting', 'Sertifikat event', 'Event mendatang', 'How do I join a meeting?'] });
   }
 
   async function ask(text) {

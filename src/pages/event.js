@@ -1,6 +1,7 @@
 import { initSite, $, h, icon, api, fmtDate, fmtTime, getMe, copyText } from '../shared/common.js';
 import { emptyState } from '../shared/ui.js';
 import { inviteManager } from '../shared/invites.js';
+import { speakerCertManager } from '../shared/speakers.js';
 await initSite();
 document.getElementById('yr').textContent = new Date().getFullYear();
 const slug = location.pathname.split('/')[2];
@@ -49,6 +50,7 @@ async function load() {
           e.certificate ? h('span', { class: 'ev-meta' }, icon('award', 17), `Sertifikat (min. ${e.minAttendMin} menit)`) : null),
         h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, action,
           e.isOwner ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => inviteManager(e, { onClose: (c) => { if (c) load(); } }) }, icon('user-plus', 18), `Undang peserta${e.invites ? ` (${e.invites})` : ''}`) : null,
+          e.isOwner ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => speakerCertManager(e) }, icon('award', 18), 'Sertifikat narasumber') : null,
           e.invited && !e.isOwner && !ended ? h('span', { class: 'pill invite' }, icon('mail-check', 14), 'Anda diundang') : null,
           !ended && e.googleCalendarUrl && (e.isOwner || e.allowed) ? h('a', { class: 'btn btn-ghost', href: e.googleCalendarUrl, target: '_blank', rel: 'noopener' }, icon('calendar-plus', 18), 'Google Calendar') : null),
         ownerInfo,

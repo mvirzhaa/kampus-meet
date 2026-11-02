@@ -63,7 +63,7 @@ export default function Events() {
   useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const options: { value: Tab; label: string }[] = [{ value: 'upcoming', label: 'Mendatang' }, { value: 'past', label: 'Selesai' }];
-  if (logged) options.push({ value: 'invited', label: 'Undangan' }, { value: 'mine', label: 'Kelola' });
+  if (logged) options.push({ value: 'mine', label: 'Event saya' });
   const now = Date.now() / 1000;
 
   return (

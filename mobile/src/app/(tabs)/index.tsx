@@ -1,12 +1,14 @@
 // Beranda ala Zoom mobile: empat tombol aksi besar, pengingat salat berikutnya, dan meeting mendatang.
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, Image, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Avatar, Button, Card, Empty, Sheet, SwitchRow, T, type IconName } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
 import { api, type RoomInfo } from '@/lib/api';
+import { useInvitations } from '@/lib/invites';
+import { InvitationCard } from '@/components/InvitationCard';
 import { joinMeeting } from '@/lib/meet';
 import { nextPrayer } from '@/lib/prayer';
 import { fmtTime, fmtDay } from '@/lib/format';
@@ -14,6 +16,7 @@ import { C } from '@/lib/theme';
 
 export default function Home() {
   const { me } = useAuth();
+  const inv = useInvitations(!!me?.user);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
@@ -24,6 +27,7 @@ export default function Home() {
   const load = useCallback(async () => {
     if (!me?.user) return;
     setLoading(true);
+    inv.refresh();
     try { setRooms((await api<{ rooms: RoomInfo[] }>('GET', '/api/rooms')).rooms); } catch { /* offline */ }
     finally { setLoading(false); }
   }, [me?.user]);
@@ -49,7 +53,7 @@ export default function Home() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: C.bg }} edges={['top']}>
-      <ScrollView contentContainerStyle={{ padding: 18, gap: 18 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} colors={[C.primary]} />}>
+      <ScrollView contentContainerStyle={{ padding: 18, gap: 18, paddingBottom: 90 }} refreshControl={<RefreshControl refreshing={loading} onRefresh={load} colors={[C.primary]} />}>
         <View style={s.head}>
           <View style={{ flex: 1 }}>
             <T size={14} color={C.muted}>Selamat datang,</T>
@@ -76,6 +80,13 @@ export default function Home() {
           </View>
         </Pressable>
 
+        {me?.user && inv.active.length ? (
+          <>
+            <Section title="Undangan untuk Anda" action={inv.active.length > 2 ? `Semua (${inv.active.length})` : 'Lihat'} onAction={() => router.push('/(tabs)/undangan')} />
+            {inv.active.slice(0, 2).map(e => <InvitationCard key={e.id} e={e} compact />)}
+          </>
+        ) : null}
+
         {me?.user ? (
           <>
             <Section title="Meeting mendatang" action={rooms.length ? 'Semua' : undefined} onAction={() => router.push('/(tabs)/jadwal')} />
@@ -90,6 +101,12 @@ export default function Home() {
           </Card>
         )}
       </ScrollView>
+
+      {/* Fitri, asisten virtual */}
+      <Pressable onPress={() => router.push('/fitri')} style={({ pressed }) => [s.fab, pressed && { transform: [{ scale: 0.96 }] }]} accessibilityRole="button" accessibilityLabel="Tanya Fitri, asisten UIKA Meet">
+        <Image source={require('../../../assets/fitri.png')} style={s.fabAv} />
+        <T w="bold" size={14} color="#fff">Tanya Fitri</T>
+      </Pressable>
 
       <Sheet visible={newOpen} onClose={() => setNewOpen(false)} title="Meeting Baru">
         <SwitchRow label="Video aktif" desc="Kamera langsung menyala saat masuk" value={video} onChange={setVideo} />
@@ -143,4 +160,7 @@ const s = StyleSheet.create({
   prayerIc: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
   roomCard: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   roomTime: { width: 58, alignItems: 'center' },
+  fab: { position: 'absolute', right: 16, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.primary, borderRadius: 30, paddingLeft: 5, paddingRight: 16, paddingVertical: 5,
+    elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
+  fabAv: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E7F7EF', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)' },
 });

@@ -1,4 +1,5 @@
-// Chatbot halaman depan: menjawab pertanyaan seputar UIKA Meet dalam Bahasa Indonesia atau English.
+// Fitri — asisten virtual UIKA Meet (halaman depan web & aplikasi Android): menjawab pertanyaan seputar
+// UIKA Meet dalam Bahasa Indonesia atau English, dan memberikan tautan undangan milik pengguna yang login.
 //
 // Cara kerja (ringan, tanpa dependensi):
 // 1. Salam, ucapan terima kasih/penutup, dan pertanyaan "event apa saja" ditangani di server.
@@ -84,9 +85,9 @@ function kb() {
     { id: 'event', keys: ['event', 'seminar', 'webinar', 'workshop', 'kuliah umum', 'daftar event', 'ikut event', 'register event', 'pendaftaran'],
       id_: 'Daftar event ada di menu Jadwal Event. Untuk mengikuti event: login, buka halaman event, lalu klik Gabung saat room dibuka (30 menit sebelum acara). Kehadiran tercatat otomatis; bila event memakai password, password diminta sekali saja. Penyelenggara membuat event lewat Dasbor → Event → Buat Event.',
       en: 'Events are listed under Event Schedule. To attend: sign in, open the event page, and click Join when the room opens (30 minutes before it starts). Attendance is recorded automatically; if the event has a password you only enter it once. Organizers create events via Dashboard → Events → Create Event.' },
-    { id: 'certificate', keys: ['sertifikat', 'certificate', 'e sertifikat', 'verifikasi', 'verify', 'unduh sertifikat', 'download certificate'],
-      id_: `Sertifikat terbit otomatis bila Kakak hadir di event minimal ${cert} menit (atau sesuai syarat penyelenggara), dihitung dari masuk pertama sampai keluar terakhir. Lihat & unduh di Dasbor → Sertifikat, lalu simpan sebagai PDF. Keaslian sertifikat bisa dicek lewat QR atau halaman verifikasi.`,
-      en: `A certificate is issued automatically if you attend the event for at least ${cert} minutes (or the organizer's requirement), measured from first join to last leave. View and download it in Dashboard → Certificates, then save it as PDF. Anyone can check its authenticity via the QR code or the verification page.` },
+    { id: 'certificate', keys: ['sertifikat', 'certificate', 'e sertifikat', 'verifikasi', 'verify', 'unduh sertifikat', 'download certificate', 'sertifikat narasumber', 'sertifikat pemateri', 'speaker certificate', 'cetak sertifikat'],
+      id_: `Sertifikat terbit otomatis bila Kakak hadir di event minimal ${cert} menit (atau sesuai syarat penyelenggara), dihitung dari masuk pertama sampai keluar terakhir. Lihat & unduh PDF di Dasbor → Sertifikat, atau di aplikasi Android: Akun → Sertifikat saya → Unduh PDF. Narasumber/pemateri mendapat sertifikat dari penyelenggara (Dasbor → Event → tombol Sertifikat narasumber, bisa dicetak sekaligus). Keaslian sertifikat bisa dicek lewat QR atau halaman verifikasi.`,
+      en: `A certificate is issued automatically if you attend the event for at least ${cert} minutes (or the organizer's requirement), measured from first join to last leave. View and download the PDF in Dashboard → Certificates, or in the Android app: Account → My certificates → Download PDF. Speakers/presenters receive certificates from the organizer (Dashboard → Events → Speaker certificates, printable in bulk). Anyone can check authenticity via the QR code or the verification page.` },
     { id: 'attendance', keys: ['presensi', 'absen', 'absensi', 'kehadiran', 'attendance', 'daftar hadir', 'rekap'],
       id_: 'Setiap peserta yang masuk dan keluar tercatat otomatis. Pemilik meeting bisa melihat rekap per sesi (masuk pertama, keluar terakhir, durasi, berapa kali masuk) di Dasbor → Meeting Saya → Kehadiran, lalu mengunduhnya sebagai Excel atau PDF.',
       en: 'Every join and leave is recorded automatically. The meeting owner can see the per-session report (first join, last leave, duration, number of joins) in Dashboard → My Meetings → Attendance and download it as Excel or PDF.' },
@@ -118,6 +119,56 @@ const TOPICS = {
   id: ['Cara bergabung ke meeting', 'Cara membuat meeting', 'Sertifikat event', 'Transkripsi & terjemahan', 'Event mendatang'],
   en: ['How to join a meeting', 'How to create a meeting', 'Event certificates', 'Transcription & translation', 'Upcoming events'],
 };
+const BOT = () => config.chatbot.name || 'Fitri';
+/** Saran topik; pengguna login juga mendapat "Undangan saya". */
+const topicsFor = (lang, u) => (u ? [lang === 'en' ? 'My invitations' : 'Undangan saya', ...TOPICS[lang]] : TOPICS[lang]);
+
+// ---------- Undangan & tautan milik pengguna ----------
+// "undangan saya", "link meeting saya", "my invitations"… (bukan "cara mengundang", yang dijawab dari basis pengetahuan)
+const MYINV_RE = /\b(undangan|diundang|invitations?|invited|link|tautan|jadwal)\b/;
+const MINE_RE = /\b(saya|aku|ku|gue|gw|sy|my|me|mine|untuk saya|buat saya|ada|apa saja|daftar|list|mana|terbaru|hari ini|minggu ini)\b/;
+const HOWTO_RE = /\b(cara|bagaimana|gimana|bgmn|how (to|do|can)|mengundang|undang peserta|kirim undangan|send invitation|invite (people|participants|users))\b/;
+const isMyInvites = (t, text) => /^(undangan saya|my invitations)$/i.test(text.trim()) || (MYINV_RE.test(t) && MINE_RE.test(t) && !HOWTO_RE.test(t));
+
+function myInvitations(u, lang) {
+  const en = lang === 'en';
+  if (!u) return {
+    reply: en ? `To see your invitations and meeting links, please sign in first, Kakak. After that, ask me again "my invitations".`
+      : 'Untuk melihat undangan dan tautan meeting Kakak, silakan masuk (login) dulu ya, Kak. Setelah itu tanyakan lagi "undangan saya".',
+    links: [{ label: en ? 'Sign in' : 'Masuk', href: '/login' }],
+  };
+  const t = now();
+  const base = config.publicUrl;
+  const fmt = (s) => new Intl.DateTimeFormat(en ? 'en-GB' : 'id-ID', { timeZone: config.timezone, weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(s * 1000)).replace('.', ':');
+  const inv = q(`SELECT e.title, e.slug, e.room_id, e.starts_at, e.ends_at, (SELECT name FROM users WHERE id = e.owner_id) AS organizer
+                 FROM event_invites i JOIN events e ON e.id = i.event_id WHERE i.user_id = ? AND e.ends_at + 3600 >= ? ORDER BY e.starts_at LIMIT 8`).all(u.id, t);
+  // Meeting terjadwal milik sendiri (tautan untuk dibagikan ke peserta)
+  const own = q(`SELECT id, name, scheduled_at, attendee_key FROM rooms WHERE owner_id = ? AND scheduled_at IS NOT NULL AND scheduled_at + COALESCE(duration_min, 60) * 60 >= ?
+                 ORDER BY scheduled_at LIMIT 5`).all(u.id, t);
+  const first = u.name.split(' ')[0];
+  if (!inv.length && !own.length) return {
+    reply: en ? `There are no invitations for you right now, Kakak ${first}. When an organizer invites you to an event, it will appear here and in Dashboard → Events → Invitations for me, and you'll get an email and app notification.`
+      : `Saat ini belum ada undangan untuk Kakak ${first}. Bila penyelenggara mengundang Kakak ke sebuah event, undangannya muncul di sini, di Dasbor → Event → Undangan untuk saya, serta dikirim lewat email dan notifikasi aplikasi.`,
+    links: [{ label: en ? 'Upcoming events' : 'Event mendatang', href: '/event' }],
+  };
+  const lines = []; const links = [];
+  if (inv.length) {
+    lines.push(en ? `Here are your invitations, Kakak ${first}:` : `Berikut undangan untuk Kakak ${first}:`);
+    for (const e of inv) {
+      const open = t >= e.starts_at - 1800 && t <= e.ends_at + 3600;
+      lines.push(`• ${e.title} — ${fmt(e.starts_at)}${e.organizer ? ` (${e.organizer})` : ''}
+  ${open ? (en ? 'Room is open: ' : 'Room sudah dibuka: ') : (en ? `Opens ${fmt(e.starts_at - 1800)}: ` : `Dibuka ${fmt(e.starts_at - 1800)}: `)}${base}/j/${e.room_id}`);
+      if (links.length < 4) links.push(open ? { label: `${en ? 'Join' : 'Gabung'}: ${e.title.slice(0, 32)}`, href: `/j/${e.room_id}` } : { label: e.title.length > 40 ? e.title.slice(0, 38) + '…' : e.title, href: `/event/${e.slug}` });
+    }
+  }
+  if (own.length) {
+    lines.push(en ? '\nYour scheduled meetings (share these links with participants):' : '\nMeeting terjadwal milik Kakak (bagikan tautan ini ke peserta):');
+    for (const r of own) lines.push(`• ${r.name} — ${fmt(r.scheduled_at)}
+  ${base}/j/${r.id}?k=${r.attendee_key}`);
+  }
+  lines.push(en ? '\nInvitee links open straight into the meeting (no event password needed) once the room opens 30 minutes before the start.' : '\nTautan undangan langsung membuka meeting (tanpa password event) begitu room dibuka 30 menit sebelum acara.');
+  return { reply: lines.join('\n'), links };
+}
 
 /** Cocokkan ke basis pengetahuan. Mengembalikan entri terbaik + skornya. */
 function bestMatch(text) {
@@ -159,7 +210,7 @@ const LINK_LABEL = { id: { join: 'Ke beranda', create: 'Buka Dasbor', certificat
 /** Jawaban lokal (tanpa AI). */
 function localAnswer(text, lang) {
   const t = norm(text);
-  if (WHO_RE.test(t)) return { reply: lang === 'en' ? `I'm the ${config.appName} Assistant, Kakak — a virtual assistant that answers questions about this system. Ask me anything about meetings, events, certificates, or the app.` : `Saya Asisten ${config.appName}, Kak — asisten virtual yang menjawab pertanyaan seputar sistem ini. Silakan tanya apa saja tentang meeting, event, sertifikat, atau aplikasinya.`, suggestions: TOPICS[lang] };
+  if (WHO_RE.test(t)) return { reply: lang === 'en' ? `I'm ${BOT()}, the ${config.appName} virtual assistant, Kakak. I answer questions about meetings, events, certificates, and the app — and if you're signed in, I can show your invitations and meeting links.` : `Saya ${BOT()}, asisten virtual ${config.appName}, Kak. Saya menjawab pertanyaan seputar meeting, event, sertifikat, dan aplikasinya — dan bila Kakak sudah login, saya bisa menampilkan undangan serta tautan meeting Kakak.`, suggestions: TOPICS[lang] };
   if (EVENTS_RE.test(t) || TOPICS.id[4].toLowerCase() === text.trim().toLowerCase() || TOPICS.en[4].toLowerCase() === text.trim().toLowerCase()) return upcomingEvents(lang);
   const { entry, score } = bestMatch(text);
   if (entry && score >= 1) {
@@ -178,7 +229,8 @@ function localAnswer(text, lang) {
 // ---------- AI opsional (Claude API) ----------
 function systemPrompt() {
   const facts = kb().map(e => `[${e.id}]\nID: ${e.id_}\nEN: ${e.en}`).join('\n\n');
-  return `Kamu adalah "Asisten ${config.appName}", chatbot di halaman depan ${config.appName} (${config.campusName}).
+  return `Kamu adalah "${BOT()}", asisten virtual ${config.appName} (${config.campusName}) di situs web dan aplikasi Android. Bila ditanya namamu, jawab bahwa kamu ${BOT()}.
+Daftar undangan & tautan meeting pribadi pengguna diambil sistem secara terpisah; bila pengguna menanyakannya, minta mereka mengetik "undangan saya".
 Aturan:
 - Jawab dalam bahasa yang dipakai pengguna (Bahasa Indonesia atau English). Bila ragu, Bahasa Indonesia.
 - Selalu sapa pengguna dengan "Kakak" atau "Kak" (juga dalam English, mis. "Sure, Kakak").
@@ -215,7 +267,7 @@ async function aiAnswer(history, lang) {
 }
 
 export function registerChatbotRoutes(r) {
-  r.get('/api/chatbot', (req, res) => json(res, 200, { ai: !!config.chatbot.apiKey, app: config.appName, topics: TOPICS }));
+  r.get('/api/chatbot', (req, res) => { const u = currentUser(req); json(res, 200, { ai: !!config.chatbot.apiKey, app: config.appName, name: BOT(), topics: { id: topicsFor('id', u), en: topicsFor('en', u) } }); });
 
   r.post('/api/chatbot', async (req, res) => {
     const wait = limiters.chatbot.take(clientIp(req));
@@ -228,10 +280,11 @@ export function registerChatbotRoutes(r) {
     const lang = detectLang(last.t, b.lang === 'en' ? 'en' : 'id');
     const t = norm(last.t);
     const u = currentUser(req);
+    const first = u ? ` ${u.name.split(' ')[0]}` : '';
 
     // Salam & penutup ditangani langsung agar perilakunya selalu sama (dengan atau tanpa AI)
     if (SALAM_RE.test(t) && t.trim().split(' ').length <= 4) {
-      return json(res, 200, { lang, reply: lang === 'en' ? `Waalaikumsalam, Kakak${u ? ` ${u.name.split(' ')[0]}` : ''}! How can I help you with ${config.appName} today?` : `Waalaikumsalam, Kak${u ? ` ${u.name.split(' ')[0]}` : ''}! Ada yang bisa saya bantu seputar ${config.appName}?`, suggestions: TOPICS[lang] });
+      return json(res, 200, { lang, reply: lang === 'en' ? `Waalaikumsalam, Kakak${first}! ${BOT()} here. How can I help you with ${config.appName} today?` : `Waalaikumsalam, Kak${first}! ${BOT()} di sini. Ada yang bisa saya bantu seputar ${config.appName}?`, suggestions: topicsFor(lang, u) });
     }
     if (END_RE.test(t) && !ASK_RE.test(t) && t.trim().split(' ').length <= 10) {
       return json(res, 200, { lang, end: true, reply: lang === 'en'
@@ -239,8 +292,10 @@ export function registerChatbotRoutes(r) {
         : `Sama-sama, Kak! 😊 Sebelum selesai, boleh Kakak beri rating 1–5 bintang dan sedikit masukan untuk percakapan ini? Masukan Kakak membantu kami memperbaiki ${config.appName}.` });
     }
     if (HELLO_RE.test(t.trim()) && t.trim().split(' ').length <= 3) {
-      return json(res, 200, { lang, reply: lang === 'en' ? `Hello, Kakak! What would you like to know about ${config.appName}?` : `Halo, Kak! Ada yang ingin Kakak tanyakan tentang ${config.appName}?`, suggestions: TOPICS[lang] });
+      return json(res, 200, { lang, reply: lang === 'en' ? `Hello, Kakak${first}! ${BOT()} here. What would you like to know about ${config.appName}?` : `Halo, Kak${first}! ${BOT()} di sini. Ada yang ingin Kakak tanyakan tentang ${config.appName}?`, suggestions: topicsFor(lang, u) });
     }
+    // Undangan & tautan meeting pribadi: selalu dari data server (juga saat AI aktif)
+    if (isMyInvites(t, last.t)) return json(res, 200, { lang, ...myInvitations(u, lang) });
 
     const local = localAnswer(last.t, lang);
     if (config.chatbot.apiKey && !EVENTS_RE.test(t)) {
@@ -249,6 +304,6 @@ export function registerChatbotRoutes(r) {
         if (ai) return json(res, 200, { lang, reply: ai, links: local.matched ? local.links : [], ai: true });
       } catch (e) { console.warn('[chatbot]', e.message); }
     }
-    json(res, 200, { lang, ...local, matched: undefined });
+    json(res, 200, { lang, ...local, suggestions: local.suggestions ? topicsFor(lang, u) : undefined, matched: undefined });
   });
 }

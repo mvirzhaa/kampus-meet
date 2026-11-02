@@ -36,6 +36,11 @@ export const DEFAULT_TEXTS = {
   text2: 'yang diselenggarakan secara daring pada {tanggal} dengan narasumber {narasumber}.',
 };
 export const PLACEHOLDER_HELP = '{kategori}, {tanggal}, {narasumber}, {judul}, {durasi}';
+/** Kalimat sertifikat narasumber/pemateri (text1 bisa diganti penyelenggara; {peran} = Narasumber, Moderator, …). */
+export const SPEAKER_TEXTS = {
+  text1: 'atas kontribusinya sebagai {peran} dalam {kategori}',
+  text2: 'yang diselenggarakan secara daring pada {tanggal}.',
+};
 
 /** Tata letak bawaan per template. */
 export function defaultLayout(template) {
@@ -73,7 +78,10 @@ export function resolveLayout(design) {
 function fillText(tpl, data) {
   let s = String(tpl || '');
   if (!data.speaker) s = s.replace(/\s*(dengan|bersama)\s+narasumber\s+\{narasumber\}/gi, '').replace(/\{narasumber\}/g, '');
-  return s.replace(/\{kategori\}/g, (data.category || '').toLowerCase()).replace(/\{tanggal\}/g, data.dateText || '')
+  s = s.replace(/\{peran\}/g, data.role || 'Narasumber');
+  // Kategori umum ("Lainnya"/kosong) dibaca "kegiatan": "sebagai peserta kegiatan", bukan "sebagai peserta lainnya"
+  const cat = !data.category || /^lain/i.test(data.category) ? 'kegiatan' : data.category.toLowerCase();
+  return s.replace(/\{kategori\}/g, cat).replace(/\{tanggal\}/g, data.dateText || '')
     .replace(/\{narasumber\}/g, data.speaker || '').replace(/\{judul\}/g, data.title || '').replace(/\{durasi\}/g, data.durationText || '');
 }
 
@@ -98,7 +106,11 @@ export function renderCertDesign(root, design, data, opt = {}) {
     let content;
     switch (def.kind) {
       case 'brand': content = [opt.logoMark ? opt.logoMark() : null, h('span', { text: `${data.app} · ${data.campus}` })]; break;
-      case 'text': content = [fillText(L.text ?? DEFAULT_TEXTS[def.id], data)]; break;
+      case 'text': {
+        // Sertifikat narasumber: kalimat peserta ("atas partisipasinya sebagai peserta…") diganti kalimat narasumber
+        const speakerTpl = data.kind === 'speaker' && SPEAKER_TEXTS[def.id] ? (def.id === 'text1' && data.speakerText ? data.speakerText : SPEAKER_TEXTS[def.id]) : null;
+        content = [fillText(speakerTpl ?? L.text ?? DEFAULT_TEXTS[def.id], data)]; break;
+      }
       case 'name': content = [data.name]; break;
       case 'title': content = [`“${data.title}”`]; break;
       case 'qr': { const q = h('div', { class: 'cd-qr' }); if (opt.qrSvg) q.append(opt.qrSvg(data.verifyUrl)); content = [q]; break; }

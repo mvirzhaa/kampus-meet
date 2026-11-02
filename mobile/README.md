@@ -28,7 +28,9 @@ Aplikasi Android (React Native + Expo SDK 58) untuk UIKA Meet. Aplikasi ini mema
   - Disertai suara takbir pembuka azan, *"Allahu akbar, Allahu akbar"*.
   - Pengingat bisa dimatikan per waktu salat.
 - **Tautan undangan langsung ke aplikasi**: `https://meet.uika-bogor.ac.id/j/...` dan `/r/...` terbuka di aplikasi.
-- **Undangan event**: tab Event → *Undangan* (undangan untuk Anda, tombol Gabung & Google Calendar) dan *Kelola* (event yang Anda buat → *Kelola undangan*: cari pengguna, tambah/hapus, khusus undangan, kirim email + notifikasi ke semua peserta).
+- **Undangan**: tab *Undangan* (badge = jumlah undangan; merah bila room sudah dibuka) dan kartu *Undangan untuk Anda* di beranda. Ketuk undangan yang sudah dibuka → langsung masuk meeting (tanpa password event); yang belum dibuka → detail event + Google Calendar. Event yang Anda buat: tab Event → *Event saya* → *Kelola undangan* (cari pengguna, tambah/hapus, khusus undangan, kirim email + notifikasi).
+- **Fitri**: asisten virtual (*Tanya Fitri* di beranda atau Akun). Ketik/ketuk "Undangan saya" untuk daftar undangan + tautan gabung yang langsung membuka meeting di aplikasi.
+- **Sertifikat saya** (Akun): sertifikat peserta dan narasumber; *Unduh PDF* menyimpan file PDF lewat browser HP (folder Download), *Bagikan* mengirim tautan verifikasi.
 - **Push notification** undangan baru dan **pengingat 30 menit sebelum event** (butuh `google-services.json` dari Firebase, lihat di bawah). Tanpa Firebase, pengingat tetap muncul sebagai notifikasi lokal.
 - **Tetap login** sampai menekan *Keluar*: token sesi disimpan di penyimpanan aman HP (bukan cookie) dan diperpanjang otomatis setiap aplikasi dipakai.
 - **Pemberitahuan versi baru** bila admin mengunggah APK yang lebih baru di Panel Admin → Aplikasi Android.

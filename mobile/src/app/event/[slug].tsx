@@ -53,7 +53,12 @@ export default function EventDetail() {
       {ev.googleCalendarUrl && Date.now() / 1000 < ev.endsAt && (ev.isOwner || ev.allowed !== false) ? (
         <Button title="Simpan ke Google Calendar" icon="calendar-outline" variant="ghost" small onPress={() => Linking.openURL(ev.googleCalendarUrl!)} />
       ) : null}
-      {ev.certCode ? <Button title="Lihat sertifikat" icon="ribbon-outline" variant="ghost" onPress={() => Linking.openURL(`${getServer()}/sertifikat/${ev.certCode}`)} /> : null}
+      {ev.certCode ? (
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Button title="Unduh sertifikat (PDF)" icon="download-outline" style={{ flex: 1.4 }} onPress={() => Linking.openURL(`${getServer()}/sertifikat/${ev.certCode}?unduh=1`)} />
+          <Button title="Lihat" icon="ribbon-outline" variant="ghost" style={{ flex: 1 }} onPress={() => Linking.openURL(`${getServer()}/sertifikat/${ev.certCode}`)} />
+        </View>
+      ) : null}
       {me?.user && ev.attendedMin ? <T size={13.5} color={C.muted} style={{ textAlign: 'center' }}>Kehadiran Anda tercatat {ev.attendedMin} menit.</T> : null}
     </ScrollView>
   );

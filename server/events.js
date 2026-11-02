@@ -16,7 +16,7 @@ function slugify(title) {
   return `${base}-${randomToken(3).toLowerCase().replace(/[^a-z0-9]/g, 'x')}`;
 }
 
-const certCode = () => 'CERT-' + Array.from(crypto.randomBytes(8), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('').replace(/(.{4})(?=.)/g, '$1-');
+export const certCode = () => 'CERT-' + Array.from(crypto.randomBytes(8), b => 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[b % 32]).join('').replace(/(.{4})(?=.)/g, '$1-');
 
 // ---------- Password event: 6 karakter acak (huruf besar/angka, tanpa yang mirip: 0/O, 1/I) ----------
 const PW_RE = /^[A-Z0-9]{6}$/;
@@ -132,6 +132,23 @@ export function recomputeEventAttendance(roomId, userId) {
     const code = !reg.cert_code && e.certificate && dur >= minCert(e) * 60 ? certCode() : reg.cert_code;
     q('UPDATE event_regs SET attended_sec = ?, first_join = ?, last_leave = ?, cert_code = ? WHERE id = ?').run(dur, r.f, r.l, code, reg.id);
   }
+}
+
+/**
+ * Isi sertifikat untuk ditampilkan/dicetak. e = baris event; p = { code, name, attendedSec?, firstJoin?, lastLeave?, role? }.
+ * role terisi → sertifikat narasumber/pemateri (kalimatnya memakai events.speaker_text atau bawaan).
+ */
+export function certPayload(e, p) {
+  return {
+    code: p.code, name: p.name, title: e.title, speaker: e.speaker, category: e.category,
+    startsAt: e.starts_at, endsAt: e.ends_at,
+    kind: p.role ? 'speaker' : 'participant', role: p.role || null, speakerText: p.role ? (e.speaker_text || '') : undefined,
+    attendedMin: p.role ? null : Math.floor((p.attendedSec || 0) / 60), firstJoin: p.firstJoin || null, lastLeave: p.lastLeave || null,
+    signerName: e.signer_name || 'Panitia Penyelenggara', signerTitle: e.signer_title || config.campusName,
+    sponsors: sponsorsOf(e), verifyUrl: `${config.publicUrl}/verifikasi/${p.code}`,
+    campus: config.campusName, app: config.appName, timezone: config.timezone,
+    design: certDesignOf(e), bgUrl: certBgUrl(e),
+  };
 }
 
 export function registerEventRoutes(r, { createRoomRecord }) {
@@ -287,19 +304,15 @@ export function registerEventRoutes(r, { createRoomRecord }) {
     });
   });
 
-  // Data sertifikat & halaman verifikasi (publik: siapa pun yang memegang kode/QR)
+  // Data sertifikat & halaman verifikasi (publik: siapa pun yang memegang kode/QR).
+  // Kode bisa milik peserta (event_regs) atau narasumber/pemateri (speaker_certs).
   r.get('/api/certificates/:code', (req, res, { code }) => {
+    const c = clean(code, 40).toUpperCase();
     const row = q(`SELECT r.cert_code, r.attended_sec, r.first_join, r.last_leave, u.name, e.*
-                   FROM event_regs r JOIN users u ON u.id = r.user_id JOIN events e ON e.id = r.event_id WHERE r.cert_code = ?`).get(clean(code, 40).toUpperCase());
-    if (!row) throw new HttpError(404, 'Sertifikat tidak ditemukan atau tidak valid.');
-    json(res, 200, { certificate: {
-      code: row.cert_code, name: row.name, title: row.title, speaker: row.speaker, category: row.category,
-      startsAt: row.starts_at, endsAt: row.ends_at, attendedMin: Math.floor(row.attended_sec / 60),
-      firstJoin: row.first_join, lastLeave: row.last_leave,
-      signerName: row.signer_name || 'Panitia Penyelenggara', signerTitle: row.signer_title || config.campusName,
-      sponsors: sponsorsOf(row), verifyUrl: `${config.publicUrl}/verifikasi/${row.cert_code}`,
-      campus: config.campusName, app: config.appName, timezone: config.timezone,
-      design: certDesignOf(row), bgUrl: certBgUrl(row),
-    } });
+                   FROM event_regs r JOIN users u ON u.id = r.user_id JOIN events e ON e.id = r.event_id WHERE r.cert_code = ?`).get(c);
+    if (row) return json(res, 200, { certificate: certPayload(row, { code: row.cert_code, name: row.name, attendedSec: row.attended_sec, firstJoin: row.first_join, lastLeave: row.last_leave }) });
+    const sp = q('SELECT s.cert_code, s.name AS sp_name, s.role AS sp_role, e.* FROM speaker_certs s JOIN events e ON e.id = s.event_id WHERE s.cert_code = ?').get(c);
+    if (sp) return json(res, 200, { certificate: certPayload(sp, { code: sp.cert_code, name: sp.sp_name, role: sp.sp_role }) });
+    throw new HttpError(404, 'Sertifikat tidak ditemukan atau tidak valid.');
   });
 }

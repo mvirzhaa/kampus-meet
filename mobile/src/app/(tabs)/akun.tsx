@@ -32,9 +32,10 @@ export default function Akun() {
       ) : null}
       <Card style={{ padding: 0, overflow: 'hidden' }}>
         <Row icon="moon-outline" label="Jadwal salat & azan" value="Pengingat 5 waktu · wilayah Jakarta" onPress={() => router.push('/prayer')} />
-        <Row icon="ribbon-outline" label="Sertifikat saya" value="Buka di versi web" onPress={() => Linking.openURL(getServer() + '/dashboard#sertifikat')} />
+        <Row icon="ribbon-outline" label="Sertifikat saya" value="Lihat & unduh PDF sertifikat" onPress={() => router.push('/sertifikat')} />
+        <Row icon="chatbubble-ellipses-outline" label="Tanya Fitri" value="Asisten virtual: bantuan & tautan undangan" onPress={() => router.push('/fitri')} />
         <Row icon="book-outline" label="Panduan penggunaan" onPress={() => Linking.openURL(getServer() + '/panduan')} />
-        <Row icon="mail-open-outline" label="Undangan event saya" value="Undangan & pengingat 30 menit sebelum mulai" onPress={() => router.push('/(tabs)/events')} />
+        <Row icon="mail-open-outline" label="Undangan saya" value="Undangan & pengingat 30 menit sebelum mulai" onPress={() => router.push('/(tabs)/undangan')} />
         <Row icon="globe-outline" label="Buka versi web" value={getServer().replace(/^https?:\/\//, '')} onPress={() => Linking.openURL(getServer())} />
       </Card>
       {u ? (

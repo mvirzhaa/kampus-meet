@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Fitri"><title>Fitri</title>
+<defs><clipPath id="c"><circle cx="60" cy="60" r="60"/></clipPath>
+<linearGradient id="hj" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0b8f68"/><stop offset="1" stop-color="#046148"/></linearGradient></defs>
+<g clip-path="url(#c)">
+<rect width="120" height="120" fill="#E7F7EF"/>
+<circle cx="96" cy="22" r="7" fill="#FFC83D" opacity=".9"/>
+<path d="M14 120 C16 96 34 84 60 84 C86 84 104 96 106 120 Z" fill="url(#hj)"/>
+<path d="M60 16 C35 16 25 36 25 56 C25 76 36 92 60 98 C84 92 95 76 95 56 C95 36 85 16 60 16 Z" fill="url(#hj)"/>
+<ellipse cx="60" cy="58" rx="23" ry="26" fill="#F7D3B6"/>
+<path d="M37 50 C40 34 52 29 60 29 C68 29 80 34 83 50 C76 42 68 39 60 39 C52 39 44 42 37 50 Z" fill="#06684d"/>
+<ellipse cx="51" cy="58" rx="2.6" ry="3.2" fill="#2B2420"/><ellipse cx="69" cy="58" rx="2.6" ry="3.2" fill="#2B2420"/>
+<circle cx="45.5" cy="66" r="3.6" fill="#F3A99A" opacity=".55"/><circle cx="74.5" cy="66" r="3.6" fill="#F3A99A" opacity=".55"/>
+<path d="M52.5 69 Q60 75.5 67.5 69" fill="none" stroke="#B5584A" stroke-width="2.6" stroke-linecap="round"/>
+<path d="M47 51.5 Q51 49.5 55 51.5 M65 51.5 Q69 49.5 73 51.5" fill="none" stroke="#5a3b2c" stroke-width="1.6" stroke-linecap="round"/>
+<circle cx="60" cy="96" r="3.2" fill="#FFC83D"/>
+</g></svg>

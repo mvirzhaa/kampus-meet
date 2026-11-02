@@ -1,6 +1,6 @@
 // Gabung ke meeting: ID/tautan, nama tampilan, pilihan audio & video — seperti layar "Join" Zoom.
-import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, ScrollView, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Button, Card, Field, SwitchRow, T } from '@/components/ui';
 import { useAuth } from '@/lib/auth';
@@ -11,7 +11,8 @@ import { fmtDateTime } from '@/lib/format';
 import { C } from '@/lib/theme';
 
 export default function Join() {
-  const params = useLocalSearchParams<{ code?: string; k?: string }>();
+  // auto=1: dibuka dari undangan → langsung bergabung tanpa menunggu tombol Gabung
+  const params = useLocalSearchParams<{ code?: string; k?: string; auto?: string }>();
   const { me } = useAuth();
   const [input, setInput] = useState(params.code ? params.code + (params.k ? `?k=${params.k}` : '') : '');
   const [name, setName] = useState(me?.user?.name || '');
@@ -21,7 +22,8 @@ export default function Join() {
   const [info, setInfo] = useState<JoinInfo | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { getJSON('join_prefs', { name: '', noAudio: false, noVideo: true }).then(p => { if (!me?.user && p.name) setName(p.name); setNoAudio(p.noAudio); setNoVideo(p.noVideo); }); }, [me?.user]);
+  const [prefsReady, setPrefsReady] = useState(false);
+  useEffect(() => { getJSON('join_prefs', { name: '', noAudio: false, noVideo: true }).then(p => { if (!me?.user && p.name) setName(p.name); setNoAudio(p.noAudio); setNoVideo(p.noVideo); setPrefsReady(true); }); }, [me?.user]);
   const target = (() => {
     if (params.code && input === params.code + (params.k ? `?k=${params.k}` : '')) return { code: params.code, key: params.k };
     return parseMeetingInput(input);
@@ -47,10 +49,24 @@ export default function Join() {
     } finally { setBusy(false); }
   }
 
+  // Dari undangan: masuk otomatis sekali begitu pengaturan audio/video tersimpan termuat
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (params.auto !== '1' || autoRan.current || !prefsReady || !me?.user || !target) return;
+    autoRan.current = true;
+    go();
+  }, [prefsReady, me?.user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const needPw = !!info?.needPassword && info.room.id === target?.code;
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={{ padding: 18, gap: 16 }} keyboardShouldPersistTaps="handled">
+        {params.auto === '1' && busy ? (
+          <Card style={{ flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: C.soft }}>
+            <ActivityIndicator color={C.primary} />
+            <T w="semibold" color={C.primaryDark} style={{ flex: 1 }}>Membuka meeting dari undangan Anda…</T>
+          </Card>
+        ) : null}
         <Card style={{ gap: 14 }}>
           <Field label="ID room atau tautan undangan" value={input} onChangeText={(v) => { setInput(v); setInfo(null); }} placeholder="abc-defg-hij" autoCapitalize="none" autoCorrect={false} style={{ fontSize: 18, textAlign: 'center' }} />
           <Field label="Nama tampilan" value={name} onChangeText={setName} placeholder="Nama lengkap (dan NIM)" />
