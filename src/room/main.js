@@ -26,6 +26,16 @@ function overlay(title, text, buttons = []) {
     buttons.length ? h('div', { class: 'btns' }, buttons.map(b => h('a', { class: `btn ${b.cls || 'btn-ghost'}`, href: b.href, onclick: b.onClick }, b.label))) : null));
 }
 const hideOverlay = () => { $('#overlay').hidden = true; };
+/** Setelah keluar dari meeting event: ajak memberi rating (tidak wajib) langsung di layar ini. */
+async function askRating() {
+  try {
+    const info = await fetch(`/api/join/${code}`, { credentials: 'same-origin' }).then(r => (r.ok ? r.json() : null));
+    if (!info?.event?.id) return;
+    const { ratingWidget } = await import('../shared/rating.js');
+    const w = await ratingWidget(info.event.id, { compact: true });
+    if (w.childElementCount) $('#overlay .ov-box')?.append(w);
+  } catch { /* tidak wajib */ }
+}
 
 let join;
 if (REC) {
@@ -84,9 +94,9 @@ room.on(RoomEvent.RoomMetadataChanged, applyMeta)
     // Ruang kelompok ditutup moderator: kembali otomatis ke ruang utama
     if (store.meta.bo && reason === DisconnectReason.ROOM_DELETED) { goRoom(0, 'Ruang kelompok ditutup. Kembali ke ruang utama…'); return; }
     if (reason === DisconnectReason.PARTICIPANT_REMOVED) { sessionStorage.removeItem(KEY); overlay('Anda dikeluarkan', 'Moderator telah mengeluarkan Anda dari meeting ini.', [home]); }
-    else if (reason === DisconnectReason.ROOM_DELETED) { sessionStorage.removeItem(KEY); overlay('Meeting telah berakhir', 'Moderator mengakhiri meeting ini. Terima kasih telah bergabung!', [home]); }
+    else if (reason === DisconnectReason.ROOM_DELETED) { sessionStorage.removeItem(KEY); overlay('Meeting telah berakhir', 'Moderator mengakhiri meeting ini. Terima kasih telah bergabung!', [home]); askRating(); }
     else if (reason === DisconnectReason.DUPLICATE_IDENTITY) overlay('Terhubung di tempat lain', 'Sesi ini dibuka di tab/perangkat lain.', [back, home]);
-    else if (store.leaving) { sessionStorage.removeItem(KEY); overlay('Anda telah keluar dari meeting', 'Sampai jumpa di pertemuan berikutnya.', [back, home]); }
+    else if (store.leaving) { sessionStorage.removeItem(KEY); overlay('Anda telah keluar dari meeting', 'Sampai jumpa di pertemuan berikutnya.', [back, home]); askRating(); }
     else autoRejoin();
   });
 

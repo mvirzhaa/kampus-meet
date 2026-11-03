@@ -12,6 +12,8 @@ import { registerChatbotRoutes } from './chatbot.js';
 import { registerInviteRoutes } from './invites.js';
 import { registerApkRoutes, latestRelease, sendApk } from './apk.js';
 import { registerSpeakerRoutes } from './speakers.js';
+import { registerPosterRoutes, sendPosterPage } from './poster.js';
+import { registerRatingRoutes } from './ratings.js';
 import { limiters } from './security.js';
 
 const api = new Router();
@@ -26,6 +28,8 @@ registerChatbotRoutes(api);
 registerInviteRoutes(api);
 registerApkRoutes(api);
 registerSpeakerRoutes(api);
+registerPosterRoutes(api);
+registerRatingRoutes(api);
 api.get('/api/health', (req, res) => json(res, 200, { ok: true }));
 
 // Halaman (clean URL → file HTML statis)
@@ -33,7 +37,7 @@ const pages = [
   [/^\/$/, 'index.html'], [/^\/(login|daftar)\/?$/, 'login.html'], [/^\/dashboard\/?$/, 'dashboard.html'], [/^\/admin\/?$/, 'admin.html'],
   [/^\/j\/[a-z-]{6,20}\/?$/, 'join.html'], [/^\/r\/[a-z-]{6,20}\/?$/, 'room.html'], [/^\/rec\/[a-z-]{6,20}\/?$/, 'room.html'],
   [/^\/event\/?$/, 'events.html'], [/^\/event\/[\w-]{3,80}\/?$/, 'event.html'],
-  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'], [/^\/m\/pres\/?$/, 'mpres.html'], [/^\/cetak-sertifikat\/\d{1,9}\/?$/, 'certbatch.html'],
+  [/^\/sertifikat\/[\w-]{4,40}\/?$/, 'certificate.html'], [/^\/verifikasi\/[\w-]{4,40}\/?$/, 'verify.html'], [/^\/panduan\/?$/, 'guide.html'], [/^\/m\/pres\/?$/, 'mpres.html'], [/^\/cetak-sertifikat\/\d{1,9}\/?$/, 'certbatch.html'], [/^\/poster\/\d{1,9}\/?$/, 'posteredit.html'],
 ];
 
 const server = http.createServer(async (req, res) => {
@@ -69,6 +73,9 @@ const server = http.createServer(async (req, res) => {
       if (config.android.downloadUrl) { res.writeHead(302, { Location: config.android.downloadUrl }); return res.end(); }
       throw new HttpError(404, 'Aplikasi Android belum tersedia untuk diunduh.');
     }
+    // Tautan share poster (meta Open Graph per event → pratinjau gambar di WhatsApp/Facebook)
+    const pm = pathname.match(/^\/p\/([\w-]{3,80})\/?$/);
+    if (pm) return sendPosterPage(req, res, pm[1]);
     for (const [re, file] of pages) if (re.test(pathname)) return sendHtml(req, res, file);
     if (serveStatic(req, res, pathname)) return;
     res.statusCode = 404;

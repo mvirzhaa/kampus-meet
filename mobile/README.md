@@ -33,6 +33,8 @@ Aplikasi Android (React Native + Expo SDK 58) untuk UIKA Meet. Aplikasi ini mema
 - **Sertifikat saya** (Akun): sertifikat peserta dan narasumber; *Unduh PDF* menyimpan file PDF lewat browser HP (folder Download), *Bagikan* mengirim tautan verifikasi.
 - **Push notification** undangan baru dan **pengingat 30 menit sebelum event** (butuh `google-services.json` dari Firebase, lihat di bawah). Tanpa Firebase, pengingat tetap muncul sebagai notifikasi lokal.
 - **Tetap login** sampai menekan *Keluar*: token sesi disimpan di penyimpanan aman HP (bukan cookie) dan diperpanjang otomatis setiap aplikasi dipakai.
+- **Bagikan poster event** (detail event → *Bagikan event*): pratinjau poster; *WhatsApp* dan *Facebook* mengirim keterangan + tautan `/p/...` (pratinjau bergambar poster); *Instagram* / *Kirim gambar* membagikan file PNG poster lewat lembar berbagi Android dan keterangannya otomatis disalin untuk ditempel; *Salin teks* menyalin keterangan.
+- **Rating & ulasan event** (tidak wajib): setelah keluar dari meeting event, aplikasi menawarkan memberi rating; banner *Bagaimana event yang Anda ikuti?* di beranda; kartu *Rating & ulasan* di detail event (bintang event, bintang per narasumber, komentar, bisa diubah).
 - **Pemberitahuan versi baru** bila admin mengunggah APK yang lebih baru di Panel Admin → Aplikasi Android.
 
 ## Firebase (push notification)

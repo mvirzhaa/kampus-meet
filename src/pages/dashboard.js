@@ -5,6 +5,7 @@ import { toXlsx, attendancePdf, transcriptPdf, transcriptDocx, saveBlob } from '
 import { eventForm as eventFormBase } from '../shared/eventform.js';
 import { inviteManager } from '../shared/invites.js';
 import { speakerCertManager } from '../shared/speakers.js';
+import { ratingsModal } from '../shared/rating.js';
 
 const me = await initSite();
 if (!requireLogin()) throw new Error('login');
@@ -261,6 +262,10 @@ async function loadEvents() {
     const [{ organized, registered }, inv] = await Promise.all([api('GET', '/api/my/events'), api('GET', '/api/my/invitations').catch(() => ({ invitations: [] }))]);
     $('#my-inv-wrap').hidden = !inv.invitations.length;
     $('#my-inv').replaceChildren(...inv.invitations.map(invItem));
+    // Ajakan rating: event yang sudah diikuti & selesai tetapi belum dinilai
+    const pend = await api('GET', '/api/my/pending-ratings').catch(() => ({ events: [] }));
+    $('#rate-wrap').hidden = !pend.events.length;
+    $('#rate-list').replaceChildren(...pend.events.map(e => h('a', { class: 'rate-chip', href: `/event/${e.slug}#rating` }, h('span', { class: 'rt-st', text: '★★★★★' }), h('span', { text: e.title }), icon('chevron-right', 16))));
     $('#ev-org').replaceChildren(...(organized.length ? organized.map(e => eventItem(e, true)) : [emptyState('Anda belum menyelenggarakan event.')]));
     $('#ev-reg').replaceChildren(...(registered.length ? registered.map(e => eventItem(e, false)) : [emptyState('Anda belum mengikuti event apa pun.')]));
   } catch (e) { toast(e.message, 'error'); }
@@ -274,6 +279,7 @@ function eventItem(e, own) {
       h('div', { class: 'meta' }, h('span', {}, icon('calendar', 15), `${fmtDate(e.startsAt)}, ${fmtTime(e.startsAt)}–${fmtTime(e.endsAt)}`),
         h('span', {}, icon('users', 15), `${e.registered} peserta`),
         own && e.invites ? h('span', {}, icon('mail', 15), `${e.invites} diundang`) : null,
+        e.ratingCount ? h('span', { class: 'rt-chip', title: `${e.ratingCount} ulasan` }, h('b', { class: 'rt-st', text: '★' }), `${e.ratingAvg.toFixed(1)} (${e.ratingCount})`) : null,
         own && e.inviteOnly ? h('span', { class: 'pill invite', text: 'Khusus undangan' }) : null,
         own ? h('span', {}, icon(e.hasPassword ? 'lock' : 'unlock', 15), e.hasPassword ? 'Password: ' : 'Tanpa password', e.hasPassword ? h('b', { text: e.password }) : null) : null,
         !own && e.certCode ? h('span', {}, icon('award', 15), 'Sertifikat tersedia') : null,
@@ -282,6 +288,9 @@ function eventItem(e, own) {
       h('a', { class: 'btn btn-primary btn-sm', href: `/event/${e.slug}` }, 'Buka'),
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Ubah event', 'aria-label': 'Ubah event', onclick: () => eventForm(e).catch(err => toast(err.message, 'error')) }, icon('pencil', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Undang peserta (email & notifikasi aplikasi)', 'aria-label': 'Undang peserta', onclick: () => inviteManager(e, { onClose: (changed) => { if (changed) loadEvents(); } }) }, icon('user-plus', 16), 'Undang') : null,
+      own ? h('a', { class: 'btn btn-ghost btn-sm', href: `/poster/${e.id}`, title: 'Rancang & bagikan poster event', 'aria-label': 'Poster event' }, icon('image', 16), 'Poster') : null,
+      own && e.ratingCount ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Rating & ulasan peserta', 'aria-label': 'Ulasan peserta', onclick: () => ratingsModal(e) }, icon('message-circle', 16)) : null,
+      !own && Date.now() / 1000 > e.startsAt ? h('a', { class: 'btn btn-ghost btn-sm', href: `/event/${e.slug}#rating`, title: 'Beri / lihat rating' }, h('span', { class: 'rt-st', text: '★' }), 'Rating') : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Sertifikat narasumber / pemateri (cetak)', 'aria-label': 'Sertifikat narasumber', onclick: () => speakerCertManager(e) }, icon('award', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Bagikan link & password', onclick: () => eventInvite(e) }, icon('link', 16)) : null,
       own ? h('button', { class: 'btn btn-ghost btn-sm', title: 'Peserta', onclick: () => participants(e) }, icon('users', 16)) : null,
@@ -321,7 +330,8 @@ function eventInvite(e) {
     row('Link meeting untuk peserta', link),
     e.password ? row('Password event', e.password) : h('p', { class: 'ev-meta', text: 'Event ini tanpa password: siapa pun yang login dan memiliki link dapat bergabung.' }),
     h('div', { class: 'note-ok' }, icon('info', 18), h('div', {}, h('strong', { text: 'Tanpa pendaftaran' }),
-      h('p', { text: 'Peserta cukup login lalu membuka link. Kehadiran dan sertifikat tercatat otomatis saat mereka bergabung.' })))),
+      h('p', { text: 'Peserta cukup login lalu membuka link. Kehadiran dan sertifikat tercatat otomatis saat mereka bergabung.' }))),
+    h('a', { class: 'btn btn-violet', href: `/poster/${e.id}`, style: { marginTop: '6px' } }, icon('image', 18), 'Rancang poster & bagikan ke WhatsApp / Instagram / Facebook')),
   actions: [{ label: 'Salin undangan', onClick: () => { copyText(text, 'Undangan tersalin'); return false; } }, { label: 'Tutup', cls: 'btn-primary' }] });
 }
 

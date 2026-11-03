@@ -7,9 +7,12 @@ import { useAuth } from '@/lib/auth';
 import { api, getServer, parseMeetingInput, type EventInfo } from '@/lib/api';
 import { fmtDateTime } from '@/lib/format';
 import { C } from '@/lib/theme';
+import { RatingCard } from '@/components/RatingCard';
+import { SharePoster } from '@/components/SharePoster';
 
 export default function EventDetail() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  // rate=1: dibuka dari ajakan rating setelah keluar meeting → kartu rating tampil paling atas
+  const { slug, rate } = useLocalSearchParams<{ slug: string; rate?: string }>();
   const { me } = useAuth();
   const [ev, setEv] = useState<EventInfo | null>(null);
   useFocusEffect(useCallback(() => { api<{ event: EventInfo }>('GET', `/api/events/${slug}`).then(r => setEv(r.event)).catch((e) => Alert.alert('Event', (e as Error).message)); }, [slug]));
@@ -22,7 +25,8 @@ export default function EventDetail() {
     router.push({ pathname: '/join', params: { code: t.code, ...(t.key ? { k: t.key } : {}) } });
   }
   return (
-    <ScrollView contentContainerStyle={{ padding: 18, gap: 14 }}>
+    <ScrollView contentContainerStyle={{ padding: 18, gap: 14, paddingBottom: 32 }}>
+      {rate === '1' && me?.user ? <RatingCard eventId={ev.id} highlight /> : null}
       <Card style={{ gap: 8 }}>
         <T w="bold" size={13} color={C.primary}>{ev.category.toUpperCase()}</T>
         <T w="extrabold" size={21}>{ev.title}</T>
@@ -60,6 +64,8 @@ export default function EventDetail() {
         </View>
       ) : null}
       {me?.user && ev.attendedMin ? <T size={13.5} color={C.muted} style={{ textAlign: 'center' }}>Kehadiran Anda tercatat {ev.attendedMin} menit.</T> : null}
+      {rate !== '1' && Date.now() / 1000 >= ev.startsAt ? <RatingCard eventId={ev.id} /> : null}
+      {ev.published !== false ? <SharePoster slug={ev.slug} /> : null}
     </ScrollView>
   );
 }

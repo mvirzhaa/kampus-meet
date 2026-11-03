@@ -17,3 +17,5 @@ secrets/
 # Konfigurasi Firebase aplikasi - jangan pernah ter-commit di mana pun
 google-services.json
 **/google-services.json
+
+.vscode/

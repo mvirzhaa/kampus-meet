@@ -440,3 +440,10 @@ input[type=range] { padding: 0; accent-color: #047857; }
 .cams:not(.grid) .tile .t-av span { width: 46px; height: 46px; font-size: 17px; }
 .tile .t-av { background: radial-gradient(circle at 50% 40%, #12382c, #0a2219 70%); }
 .cams.grid .tile .t-av span { width: clamp(56px, calc(var(--tw, 320px) / 4.5), 110px); height: clamp(56px, calc(var(--tw, 320px) / 4.5), 110px); font-size: clamp(20px, calc(var(--tw, 320px) / 12), 40px); }
+/* Ajakan rating setelah keluar dari meeting event (latar gelap) */
+.ov-box .rt { width: 100%; max-width: 420px; margin-top: 6px; text-align: left; border-top: 1px solid rgba(255, 255, 255, .12); padding-top: 16px; color: #e7f2ed; }
+.ov-box .rt-form b { color: #fff; }
+.ov-box .rt-msg, .ov-box .rt-sp-in > small { color: #a9c4b8; }
+.ov-box .rt-star { color: #3d5a50; } .ov-box .rt-star.on { color: #f5b301; }
+.ov-box .rt textarea { background: #0e1a16; color: #e7f2ed; border-color: #2b3f38; }
+.ov-box .rt-mine { background: rgba(16, 185, 129, .12); } .ov-box .rt-mine span { color: #e7f2ed; }

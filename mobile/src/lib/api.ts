@@ -77,6 +77,7 @@ export type EventInfo = {
   startsAt: number; endsAt: number; organizer: string; hasPassword: boolean; certificate: boolean;
   joinOpen?: boolean; opensAt?: number; joinLink?: string | null; isOwner?: boolean; attendedMin?: number; certCode?: string | null;
   inviteOnly?: boolean; invited?: boolean; allowed?: boolean; invites?: number; googleCalendarUrl?: string; roomId?: string;
+  published?: boolean; ratingAvg?: number | null; ratingCount?: number; hasPoster?: boolean; shareUrl?: string;
 };
 export type Invitation = {
   id: number; slug: string; title: string; speaker: string; category: string; startsAt: number; endsAt: number;
@@ -87,7 +88,7 @@ export type InviteList = { inviteOnly: boolean; invites: InviteRow[]; pending: n
 export type JoinInfo = {
   room: { id: string; name: string; owner: string; scheduledAt: number | null; durationMin: number | null; allowGuests: boolean };
   role: 'moderator' | 'viewer';
-  event: { title: string; slug: string; startsAt: number; endsAt: number; opensAt: number; open: boolean; inviteOnly?: boolean; invited?: boolean; notInvited?: boolean } | null;
+  event: { id?: number; title: string; slug: string; startsAt: number; endsAt: number; opensAt: number; open: boolean; inviteOnly?: boolean; invited?: boolean; notInvited?: boolean } | null;
   needPassword: boolean; needLogin: boolean; user: { name: string } | null;
 };
 export type JoinResult = {

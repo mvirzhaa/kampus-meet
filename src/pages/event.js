@@ -2,6 +2,7 @@ import { initSite, $, h, icon, api, fmtDate, fmtTime, getMe, copyText } from '..
 import { emptyState } from '../shared/ui.js';
 import { inviteManager } from '../shared/invites.js';
 import { speakerCertManager } from '../shared/speakers.js';
+import { ratingWidget, ratingsModal } from '../shared/rating.js';
 await initSite();
 document.getElementById('yr').textContent = new Date().getFullYear();
 const slug = location.pathname.split('/')[2];
@@ -51,6 +52,8 @@ async function load() {
         h('div', { style: { display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' } }, action,
           e.isOwner ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => inviteManager(e, { onClose: (c) => { if (c) load(); } }) }, icon('user-plus', 18), `Undang peserta${e.invites ? ` (${e.invites})` : ''}`) : null,
           e.isOwner ? h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => speakerCertManager(e) }, icon('award', 18), 'Sertifikat narasumber') : null,
+          e.isOwner ? h('a', { class: 'btn btn-ghost', href: `/poster/${e.id}` }, icon('image', 18), 'Poster & bagikan') : null,
+          !e.isOwner && e.published ? h('a', { class: 'btn btn-ghost', href: `/p/${e.slug}` }, icon('send', 18), 'Bagikan') : null,
           e.invited && !e.isOwner && !ended ? h('span', { class: 'pill invite' }, icon('mail-check', 14), 'Anda diundang') : null,
           !ended && e.googleCalendarUrl && (e.isOwner || e.allowed) ? h('a', { class: 'btn btn-ghost', href: e.googleCalendarUrl, target: '_blank', rel: 'noopener' }, icon('calendar-plus', 18), 'Google Calendar') : null),
         ownerInfo,
@@ -59,6 +62,12 @@ async function load() {
         e.certCode ? h('a', { href: `/sertifikat/${e.certCode}`, style: { marginLeft: 'auto', fontWeight: 600 } }, 'Lihat sertifikat →') : null) : null,
         h('div', {}, h('h3', { text: 'Deskripsi' }), h('p', { text: e.description || 'Belum ada deskripsi.', style: { whiteSpace: 'pre-line', color: 'var(--muted)' } })),
         e.sponsors?.length ? h('div', {}, h('h3', { text: 'Didukung oleh' }),
-          h('div', { class: 'ev-sponsors' }, e.sponsors.map(sp => h('img', { src: sp.url, alt: sp.name || 'Logo sponsor', title: sp.name || '' })))) : null)));
+          h('div', { class: 'ev-sponsors' }, e.sponsors.map(sp => h('img', { src: sp.url, alt: sp.name || 'Logo sponsor', title: sp.name || '' })))) : null)),
+    // Rating & ulasan peserta (tidak wajib, setelah meeting selesai)
+    h('section', { class: 'section-card', id: 'rating', style: { marginTop: '20px' } }, h('div', { class: 'ev-rt-slot' }),
+      e.isOwner && e.ratingCount ? h('button', { class: 'btn btn-ghost btn-sm', style: { marginTop: '12px' }, onclick: () => ratingsModal(e) }, icon('message-circle', 16), `Lihat semua ulasan (${e.ratingCount})`) : null));
+  const w = await ratingWidget(e.id);
+  document.querySelector('.ev-rt-slot').replaceWith(w);
+  if (location.hash === '#rating') document.getElementById('rating').scrollIntoView({ behavior: 'smooth' });
 }
 load();

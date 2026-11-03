@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth';
 import { api, type RoomInfo } from '@/lib/api';
 import { useInvitations } from '@/lib/invites';
 import { InvitationCard } from '@/components/InvitationCard';
+import type { PendingRating } from '@/lib/rating';
 import { joinMeeting } from '@/lib/meet';
 import { nextPrayer } from '@/lib/prayer';
 import { fmtTime, fmtDay } from '@/lib/format';
@@ -18,6 +19,7 @@ export default function Home() {
   const { me } = useAuth();
   const inv = useInvitations(!!me?.user);
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [pending, setPending] = useState<PendingRating[]>([]);
   const [loading, setLoading] = useState(false);
   const [newOpen, setNewOpen] = useState(false);
   const [video, setVideo] = useState(true);
@@ -28,6 +30,7 @@ export default function Home() {
     if (!me?.user) return;
     setLoading(true);
     inv.refresh();
+    api<{ events: PendingRating[] }>('GET', '/api/my/pending-ratings').then(r => setPending(r.events)).catch(() => {});
     try { setRooms((await api<{ rooms: RoomInfo[] }>('GET', '/api/rooms')).rooms); } catch { /* offline */ }
     finally { setLoading(false); }
   }, [me?.user]);
@@ -79,6 +82,18 @@ export default function Home() {
             <T w="semibold" size={13} color={C.gold}>{mins >= 60 ? `${Math.floor(mins / 60)} j ${mins % 60} m lagi` : `${mins} menit lagi`}</T>
           </View>
         </Pressable>
+
+        {me?.user && pending.length ? (
+          <Pressable onPress={() => router.push({ pathname: '/event/[slug]', params: { slug: pending[0].slug, rate: '1' } })} style={({ pressed }) => [s.rate, pressed && { opacity: 0.85 }]}
+            accessibilityRole="button" accessibilityLabel={`Beri rating untuk ${pending[0].title}`}>
+            <Ionicons name="star" size={22} color="#F5B301" />
+            <View style={{ flex: 1 }}>
+              <T w="bold" size={14.5} color="#5B3D00">Bagaimana event yang Anda ikuti?</T>
+              <T size={13} color="#6B4A00" numberOfLines={1}>Beri rating “{pending[0].title}”{pending.length > 1 ? ` (+${pending.length - 1} lagi)` : ''} · tidak wajib</T>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#8A5A00" />
+          </Pressable>
+        ) : null}
 
         {me?.user && inv.active.length ? (
           <>
@@ -160,6 +175,7 @@ const s = StyleSheet.create({
   prayerIc: { width: 42, height: 42, borderRadius: 12, backgroundColor: C.gold, alignItems: 'center', justifyContent: 'center' },
   roomCard: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14 },
   roomTime: { width: 58, alignItems: 'center' },
+  rate: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: '#FFF7DC', borderColor: '#F5D77A', borderWidth: 1, borderRadius: 16, padding: 14 },
   fab: { position: 'absolute', right: 16, bottom: 18, flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.primary, borderRadius: 30, paddingLeft: 5, paddingRight: 16, paddingVertical: 5,
     elevation: 6, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
   fabAv: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#E7F7EF', borderWidth: 2, borderColor: 'rgba(255,255,255,0.7)' },

@@ -76,10 +76,12 @@ const certBgUrl = (e) => e.cert_bg_mime ? `/api/cert-bg/${e.id}?v=${e.cert_bg_ve
 function eventView(e, extra = {}) {
   const regs = q('SELECT COUNT(*) AS n FROM event_regs WHERE event_id = ?').get(e.id).n;
   const organizer = q('SELECT name FROM users WHERE id = ?').get(e.owner_id)?.name || '';
+  const rt = q('SELECT AVG(rating) AS a, COUNT(*) AS n FROM event_ratings WHERE event_id = ?').get(e.id);
   return {
     id: e.id, slug: e.slug, title: e.title, description: e.description, speaker: e.speaker, category: e.category,
     startsAt: e.starts_at, endsAt: e.ends_at, quota: e.quota, certificate: !!e.certificate, minAttendMin: minCert(e),
     published: !!e.published, registered: regs, organizer, hasPassword: !!e.password_enc, inviteOnly: !!e.invite_only,
+    ratingAvg: rt.a == null ? null : Math.round(rt.a * 10) / 10, ratingCount: rt.n, hasPoster: !!e.poster_ver, shareUrl: `${config.publicUrl}/p/${e.slug}`,
     signerName: e.signer_name || '', signerTitle: e.signer_title || '',
     sponsorsEnabled: !!e.sponsors_enabled, sponsors: sponsorsOf(e), certDesign: certDesignOf(e), certBgUrl: certBgUrl(e), ...extra,
   };

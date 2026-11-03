@@ -18,6 +18,7 @@
       <a href="#meeting" data-sec="meeting"><i data-i="video"></i>Semua Meeting</a>
       <a href="#event" data-sec="event"><i data-i="calendar"></i>Semua Event</a>
       <a href="#sertifikat" data-sec="sertifikat"><i data-i="award"></i>Sertifikat Peserta</a>
+      <a href="#rating" data-sec="rating"><i data-i="award"></i>Rating Event</a>
       <a href="#masukan" data-sec="masukan"><i data-i="message-circle"></i>Masukan <b class="side-badge" id="fb-badge" hidden></b></a>
       <a href="#android" data-sec="android"><i data-i="smartphone"></i>Aplikasi Android</a>
       <a href="#azan" data-sec="azan"><i data-i="moon-star"></i>Notifikasi Azan</a>
@@ -122,6 +123,25 @@
           </div>
         </div>
         <div class="room-list" id="events"></div>
+      </section>
+
+      <section data-panel="rating" hidden>
+        <div class="dash-head"><h1>Rating Event</h1></div>
+        <p class="ev-meta">Rating & komentar peserta setelah event (tidak wajib), dirangkum per kategori dan per narasumber. Rating narasumber memakai bintang khusus narasumber bila peserta mengisinya; bila tidak, rating event dihitung untuk narasumber event tersebut.</p>
+        <div class="toolbar wide">
+          <select id="rt-period" aria-label="Periode"><option value="0">Semua waktu</option><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option><option value="365">12 bulan terakhir</option></select>
+          <select id="rt-cat" aria-label="Kategori"><option value="">Semua kategori</option></select>
+        </div>
+        <div id="rt-stats"></div>
+        <div class="section-card" style="margin-top:20px">
+          <h3>Semua ulasan</h3>
+          <div class="toolbar wide">
+            <input id="rt-q" type="search" placeholder="Cari event, nama peserta, atau isi komentar…" maxlength="80" aria-label="Cari ulasan">
+            <select id="rt-stars" aria-label="Bintang"><option value="">Semua bintang</option><option value="5">★★★★★ 5</option><option value="4">★★★★ 4</option><option value="3">★★★ 3</option><option value="2">★★ 2</option><option value="1">★ 1</option></select>
+            <label class="check"><input type="checkbox" id="rt-cm"> Hanya yang berkomentar</label>
+          </div>
+          <div id="rt-list"></div>
+        </div>
       </section>
 
       <section data-panel="statistik" hidden>

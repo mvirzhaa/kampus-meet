@@ -312,7 +312,7 @@ export function registerRoomRoutes(r) {
     json(res, 200, {
       room: { id: room.id, name: room.name, owner: owner?.name || '', scheduledAt: ev ? ev.starts_at : room.scheduled_at, durationMin: room.duration_min, allowGuests: !!room.allow_guests },
       role: isMod ? 'moderator' : 'viewer',
-      event: ev ? { title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, opensAt: ev.starts_at - 1800, open: eventOpen(ev), inviteOnly: !!ev.invite_only, invited, notInvited } : null,
+      event: ev ? { id: ev.id, title: ev.title, slug: ev.slug, startsAt: ev.starts_at, endsAt: ev.ends_at, opensAt: ev.starts_at - 1800, open: eventOpen(ev), inviteOnly: !!ev.invite_only, invited, notInvited } : null,
       needPassword: ev ? (!isMod && !!ev.password_enc && !joinedBefore && !invited) : (!viaLink && !!room.password_enc),
       needLogin: !u && (ev ? !isMod : !room.allow_guests && !isMod),
       user: u ? { name: u.name } : null,

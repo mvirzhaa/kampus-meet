@@ -31,6 +31,7 @@ import { hasDeviceTranslate, OTHER, prepareTranslate, SHORT, type Lang2 } from '
 import { getJSON, setJSON } from '@/lib/store';
 import { getServer } from '@/lib/api';
 import { nextPrayer } from '@/lib/prayer';
+import { askRatingAfterMeeting } from '@/lib/rating';
 import { fmtClock } from '@/lib/format';
 import { C, F } from '@/lib/theme';
 
@@ -58,7 +59,9 @@ function Meeting({ session }: { session: Session }) {
     setSession(null);
     if (why) Alert.alert('Meeting', why);
     if (router.canGoBack()) router.back(); else router.replace('/');
-  }, []);
+    // Meeting sebuah event → ajak memberi rating (tidak wajib)
+    askRatingAfterMeeting(session.room?.id || session.code);
+  }, [session]);
   useEffect(() => { getJSON<TrPrefs>('tr_prefs', trPrefs).then(setTrPrefs); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const saveTr = (p: TrPrefs) => { setTrPrefs(p); setJSON('tr_prefs', p); if (p.to) prepareTranslate(p.to === 'en' ? 'id' : 'en', p.to); };
 

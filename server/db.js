@@ -272,6 +272,25 @@ CREATE TABLE IF NOT EXISTS speaker_certs (
 );
 CREATE INDEX IF NOT EXISTS idx_speaker_event ON speaker_certs(event_id, sort);
 CREATE INDEX IF NOT EXISTS idx_speaker_user ON speaker_certs(user_id);
+-- Rating & komentar event dari peserta (opsional, setelah meeting selesai)
+CREATE TABLE IF NOT EXISTS event_ratings (
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INTEGER NOT NULL,                 -- 1..5
+  comment TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (event_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS idx_ratings_time ON event_ratings(created_at);
+-- Rating per narasumber (opsional, bagian dari formulir rating event)
+CREATE TABLE IF NOT EXISTS event_speaker_ratings (
+  event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  speaker TEXT NOT NULL,                   -- nama narasumber seperti tertulis
+  rating INTEGER NOT NULL,
+  PRIMARY KEY (event_id, user_id, speaker)
+);
 `);
 
 // Migrasi kolom (aman dijalankan berulang)
@@ -308,6 +327,9 @@ for (const sql of [
   'ALTER TABLE sessions ADD COLUMN days INTEGER',
   // Kalimat sertifikat narasumber yang bisa diubah penyelenggara (kosong = bawaan)
   "ALTER TABLE events ADD COLUMN speaker_text TEXT NOT NULL DEFAULT ''",
+  // Rancangan poster event (JSON) + versi gambar poster yang sudah dirender
+  "ALTER TABLE events ADD COLUMN poster TEXT NOT NULL DEFAULT ''",
+  'ALTER TABLE events ADD COLUMN poster_ver INTEGER',
 ]) { try { db.exec(sql); } catch { /* sudah ada */ } }
 db.exec('CREATE INDEX IF NOT EXISTS idx_tr_cid ON transcripts(room_id, identity, cid)');
 

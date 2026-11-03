@@ -16,7 +16,7 @@ function show() {
   for (const p of $$('[data-panel]')) p.hidden = p.dataset.panel !== sec;
   for (const a of $$('.side a[data-sec]')) a.classList.toggle('active', a.dataset.sec === sec);
   ({ statistik: loadStats, pengaturan: loadSettings, kategori: loadCats, pengguna: loadUsers, meeting: loadRooms, event: loadEvents,
-    sertifikat: loadCerts, masukan: loadFeedback, azan: loadAzan, android: loadApk })[sec]?.();
+    sertifikat: loadCerts, masukan: loadFeedback, azan: loadAzan, android: loadApk, rating: loadRatings })[sec]?.();
 }
 addEventListener('hashchange', show);
 
@@ -480,6 +480,7 @@ function eventItem(e) {
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Ubah event', 'aria-label': `Ubah event ${e.title}`, onclick: () => editEvent(e) }, icon('pencil', 16)),
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Undangan peserta (email & notifikasi aplikasi)', 'aria-label': `Undangan event ${e.title}`, onclick: () => inviteManager(e) }, icon('user-plus', 16)),
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Sertifikat narasumber / pemateri (cetak)', 'aria-label': `Sertifikat narasumber ${e.title}`, onclick: () => speakerCertManager(e) }, icon('award', 16)),
+      h('a', { class: 'btn btn-ghost btn-sm', href: `/poster/${e.id}`, title: 'Poster event', 'aria-label': `Poster ${e.title}` }, icon('image', 16)),
       e.registered ? h('a', { class: 'btn btn-ghost btn-sm', title: 'Lihat peserta & sertifikat', 'aria-label': 'Lihat peserta & sertifikat', href: `#sertifikat?event=${e.id}` }, icon('award', 16)) : null,
       h('a', { class: 'btn btn-ghost btn-sm', title: 'Lihat halaman event', href: `/event/${e.slug}` }, icon('eye', 16)),
       h('button', { class: 'btn btn-ghost btn-sm', title: 'Hapus event', onclick: () => removeEvent(e) }, icon('trash', 16))));
@@ -532,6 +533,66 @@ for (const b of $$('#st-period [data-p]')) b.addEventListener('click', () => {
   for (const x of $$('#st-period [data-p]')) x.setAttribute('aria-checked', String(x === b));
   loadStats();
 });
+
+// ==================== Rating event ====================
+let rtPL = null, rtBound = false;
+const rtStars = (v) => '★★★★★'.slice(0, Math.round(v || 0)) + '☆☆☆☆☆'.slice(0, 5 - Math.round(v || 0));
+const rtFilters = () => ({ period: $('#rt-period').value, category: $('#rt-cat').value });
+async function loadRatings() {
+  const box = $('#rt-stats');
+  let d;
+  try { d = await api('GET', `/api/admin/ratings/stats?${new URLSearchParams(rtFilters())}`); } catch (e) { return fail(box, e); }
+  const cat = $('#rt-cat');
+  if (cat.options.length <= 1) cat.append(...d.categories.map(c => h('option', { value: c, text: c })));
+  const charts = await import('../shared/charts.js');
+  const k = d.kpi;
+  const tile = (label, value, note) => h('div', { class: 'kpi' }, h('span', { class: 'kpi-l', text: label }), h('b', { class: 'kpi-v', text: value }), note ? h('small', { text: note }) : null);
+  const c1 = h('div'), c2 = h('div'), c3 = h('div');
+  const evRow = (e) => h('tr', {}, h('td', {}, h('a', { href: `/event/${e.slug}`, target: '_blank', rel: 'noopener', text: e.title }), h('div', { class: 'muted-sm', text: `${e.category} · ${fmtDate(e.startsAt)}` })),
+    h('td', { class: 'num' }, h('b', { text: e.avg.toFixed(1) }), ' ', h('span', { class: 'rt-st', text: rtStars(e.avg) })), h('td', { class: 'num', text: String(e.count) }),
+    h('td', {}, h('button', { class: 'btn btn-ghost btn-sm', type: 'button', onclick: () => import('../shared/rating.js').then(m => m.ratingsModal(e)) }, 'Ulasan')));
+  box.replaceChildren(
+    h('div', { class: 'kpis' },
+      tile('Rata-rata rating', k.count ? `${k.avg.toFixed(1)} ★` : '–', `${k.count.toLocaleString('id-ID')} ulasan`),
+      tile('Event dinilai', k.events.toLocaleString('id-ID'), 'memiliki minimal 1 ulasan'),
+      tile('Puas (4–5★)', `${k.pctHigh}%`, 'dari seluruh ulasan'),
+      tile('Berkomentar', k.comments.toLocaleString('id-ID'), 'ulasan dengan komentar')),
+    !k.count ? emptyState('Belum ada rating pada periode/kategori ini.', 'award') : h('div', { class: 'rt-grid' },
+      h('div', { class: 'section-card cv-card' }, h('h3', { text: 'Rating per kategori' }), h('p', { class: 'cv-sub', text: 'Rata-rata bintang (jumlah ulasan dalam kurung)' }), c1),
+      h('div', { class: 'section-card cv-card' }, h('h3', { text: 'Sebaran bintang' }), h('div', { class: 'rt-dist big' }, ...[5, 4, 3, 2, 1].map(n => h('div', { class: 'rt-bar' }, h('span', { text: `${n}★` }),
+        h('i', {}, h('em', { style: { width: `${k.count ? Math.round((d.dist[n - 1] / k.count) * 100) : 0}%` } })), h('small', { text: String(d.dist[n - 1]) })))))),
+    k.count ? h('div', { class: 'section-card cv-card' }, h('h3', { text: 'Rating per narasumber' }), h('p', { class: 'cv-sub', text: 'Rata-rata bintang; jumlah penilaian & event di tabel' }), c2,
+      table(['Narasumber', 'Rata-rata', 'Penilaian', 'Event', 'Bintang khusus'], d.bySpeaker.map(s => h('tr', {}, h('td', {}, h('b', { text: s.name })),
+        h('td', { class: 'num' }, h('b', { text: s.avg.toFixed(1) }), ' ', h('span', { class: 'rt-st', text: rtStars(s.avg) })),
+        h('td', { class: 'num', text: String(s.count) }), h('td', { class: 'num', text: String(s.events) }), h('td', { class: 'num', text: String(s.explicit) }))))) : null,
+    k.count && d.trend.length > 1 ? h('div', { class: 'section-card cv-card' }, h('h3', { text: 'Tren rating bulanan' }), h('p', { class: 'cv-sub', text: 'Rata-rata bintang per bulan' }), c3) : null,
+    k.count ? h('div', { class: 'rt-grid' },
+      h('div', { class: 'section-card' }, h('h3', { text: 'Event dengan rating tertinggi' }), table(['Event', 'Rating', 'Ulasan', ''], d.top.map(evRow))),
+      h('div', { class: 'section-card' }, h('h3', { text: 'Perlu perhatian (rating terendah)' }), table(['Event', 'Rating', 'Ulasan', ''], d.low.map(evRow)))) : null);
+  if (k.count) {
+    charts.hbarChart(c1, { items: d.byCategory.map(c => ({ label: `${c.category} (${c.count})`, value: c.avg, tip: `★ rata-rata · ${c.events} event` })), unit: '★', ariaLabel: 'Rating rata-rata per kategori' });
+    if (d.bySpeaker.length) charts.hbarChart(c2, { items: d.bySpeaker.slice(0, 15).map(s => ({ label: s.name, value: s.avg, tip: `★ rata-rata · ${s.count} penilaian` })), unit: '★', ariaLabel: 'Rating rata-rata per narasumber' });
+    if (d.trend.length > 1) charts.timeChart(c3, { labels: d.trend.map(t => t.month.slice(5) + '/' + t.month.slice(2, 4)), full: d.trend.map(t => t.month), kind: 'line', ariaLabel: 'Tren rating bulanan',
+      series: [{ name: 'Rata-rata bintang', values: d.trend.map(t => t.avg) }] });
+  }
+  if (!rtPL) {
+    rtPL = pagedList({ box: $('#rt-list'), url: '/api/admin/ratings', per: 15,
+      params: () => ({ ...rtFilters(), q: $('#rt-q').value.trim(), stars: $('#rt-stars').value, comment: $('#rt-cm').checked ? '1' : '' }),
+      empty: ['Belum ada ulasan.', 'message-circle'],
+      render: (rows) => h('div', {}, ...rows.map(r => h('div', { class: 'rt-item' },
+        h('div', {}, h('b', { text: r.name }), h('span', { class: 'rt-st', text: rtStars(r.rating) }), h('small', { text: `${r.email} · ${fmtDateTime(r.at)}` })),
+        h('div', { class: 'muted-sm' }, h('a', { href: `/event/${r.event.slug}`, target: '_blank', rel: 'noopener', text: r.event.title }), ` · ${r.event.category}`),
+        r.comment ? h('p', { text: r.comment }) : null,
+        Object.keys(r.speakers || {}).length ? h('small', { class: 'rt-spx', text: Object.entries(r.speakers).map(([n, v]) => `${n}: ${v}★`).join(' · ') }) : null))) });
+  }
+  rtPL.load(1);
+  if (!rtBound) {
+    rtBound = true;
+    for (const id of ['#rt-period', '#rt-cat']) $(id).addEventListener('change', () => loadRatings());
+    $('#rt-q').addEventListener('input', debounce(() => rtPL.load(1)));
+    for (const id of ['#rt-stars', '#rt-cm']) $(id).addEventListener('change', () => rtPL.load(1));
+  }
+}
 
 // ==================== Sertifikat peserta ====================
 let certPL; let certEventsLoaded = false;
